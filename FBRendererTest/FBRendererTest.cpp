@@ -4,9 +4,11 @@
 #include "framework.h"
 #include "FBRendererTest.h"
 #include "../FBRenderer.h"
+#include <chrono>
 
 #define MAX_LOADSTRING 100
 
+fb::IRenderer* gRenderer = nullptr;
 // Global Variables:
 HINSTANCE hInst;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
@@ -41,17 +43,27 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_FBRENDERERTEST));
 
-    MSG msg;
+	MSG msg = {0};
 
     // Main message loop:
-    while (GetMessage(&msg, nullptr, 0, 0))
-    {
-        if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
-        {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
-        }
-    }
+	while (msg.message != WM_QUIT)
+	{
+		// If there are Window messages then process them.
+		if (PeekMessage(&msg, 0, 0, 0, PM_REMOVE))
+		{
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+		// Otherwise, do animation/game stuff.
+		else
+		{
+			static auto time = std::chrono::high_resolution_clock::now();
+			if (gRenderer)
+			{
+				gRenderer->Draw(std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - time).count());
+			}
+		}
+	}
 
     return (int) msg.wParam;
 }
@@ -109,9 +121,9 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    ShowWindow(hWnd, nCmdShow);
    UpdateWindow(hWnd);
 
-   fb::InitRenderer(fb::RendererType::D3D12, (void*)hWnd);
+   gRenderer = fb::InitRenderer(fb::RendererType::D3D12, (void*)hWnd);
 
-   return TRUE;
+   return gRenderer != nullptr;
 }
 
 //
@@ -126,6 +138,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 //
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+	static bool Resizing = false;
     switch (message)
     {
     case WM_COMMAND:
@@ -156,6 +169,31 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     case WM_DESTROY:
         PostQuitMessage(0);
         break;
+
+	case WM_ENTERSIZEMOVE:
+		Resizing = true;
+		break;
+
+	case WM_EXITSIZEMOVE:
+		Resizing = false;
+		gRenderer->OnResized();
+		break;
+
+	case WM_SIZE:
+	{
+		// Save the new client area dimensions.
+		UINT clientWidth = LOWORD(lParam);
+		UINT clientHeight = HIWORD(lParam);
+
+		if (gRenderer)
+		{
+			if (!Resizing)
+			{
+				gRenderer->OnResized();
+			}
+		}
+		return 0;
+	}
     default:
         return DefWindowProc(hWnd, message, wParam, lParam);
     }

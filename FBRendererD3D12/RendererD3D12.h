@@ -11,6 +11,9 @@ namespace fb
 		Microsoft::WRL::ComPtr<ID3D12CommandAllocator> DirectCmdAllocator;
 		Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> CommandList;
 		Microsoft::WRL::ComPtr<IDXGISwapChain> SwapChain;
+		static const int SwapChainBufferCount = 2;
+		Microsoft::WRL::ComPtr<ID3D12Resource> SwapChainBuffer[SwapChainBufferCount];
+		Microsoft::WRL::ComPtr<ID3D12Resource> DepthStencilBuffer;
 		Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> RtvHeap;
 		Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> DsvHeap;
 		HWND WindowHandle = 0;
@@ -22,13 +25,19 @@ namespace fb
 		DXGI_FORMAT DepthStencilFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 		bool      Msaa4xState = false;    // 4X MSAA enabled
 		UINT      Msaa4xQuality = 0;      // quality level of 4X MSAA
-		static const int SwapChainBufferCount = 2;
 
+		UINT64 CurrentFence = 0;
+		int CurrBackBuffer = 0;
+
+		D3D12_VIEWPORT ScreenViewport;
+		D3D12_RECT ScissorRect;
 
 	public:
 		
 		virtual bool Initialize(void* windowHandle) override;
 		virtual bool Finalize() override;
+		virtual void OnResized() override;
+		virtual void Draw(float dt) override;
 
 
 	private:
@@ -43,6 +52,12 @@ namespace fb
 
 		UINT GetClientWidth();
 		UINT GetClientHeight();
+		
+		void FlushCommandQueue();
+
+		ID3D12Resource* CurrentBackBuffer()const;
+		D3D12_CPU_DESCRIPTOR_HANDLE CurrentBackBufferView()const;
+		D3D12_CPU_DESCRIPTOR_HANDLE DepthStencilView()const;
 	};
 }
 

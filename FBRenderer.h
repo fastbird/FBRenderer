@@ -1,4 +1,5 @@
 #pragma once
+#include "IRenderer.h"
 namespace fb
 {
 	class IRenderer;
