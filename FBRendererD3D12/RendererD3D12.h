@@ -36,9 +36,11 @@ namespace fb
 		
 		// IRenderer Interfaces
 		virtual bool Initialize(void* windowHandle) override;
-		virtual bool Finalize() override;
+		virtual void Finalize() override;
 		virtual void OnResized() override;
 		virtual void Draw(float dt) override;
+		virtual IVertexBuffer* CreateVertexBuffer(const void* vertexData, UINT size, UINT stride, bool keepData) override;
+		virtual IIndexBuffer* CreateIndexBuffer(const void* indexData, UINT size, EDataFormat format, bool keepData) override;
 
 
 		// Owning Functions
@@ -71,5 +73,4 @@ namespace fb
 extern "C"
 {
 	FBRendererD3D12_DLL fb::IRenderer* CreateRendererD3D12();
-	FBRendererD3D12_DLL void DeleteRendererD3D12(fb::IRenderer* renderer);
 }

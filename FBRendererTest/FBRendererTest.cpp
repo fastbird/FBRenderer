@@ -5,10 +5,13 @@
 #include "FBRendererTest.h"
 #include "../FBRenderer.h"
 #include <chrono>
+#include <thread>
+#include <array>
 
 #define MAX_LOADSTRING 100
 
 fb::IRenderer* gRenderer = nullptr;
+struct MeshGeometry* gBoxMesh = nullptr;
 // Global Variables:
 HINSTANCE hInst;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
@@ -19,6 +22,7 @@ ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
+bool				BuildBoxGeometry();
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
@@ -41,10 +45,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         return FALSE;
     }
 
+	BuildBoxGeometry();
+
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_FBRENDERERTEST));
 
 	MSG msg = {0};
-
     // Main message loop:
 	while (msg.message != WM_QUIT)
 	{
@@ -61,9 +66,14 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			if (gRenderer)
 			{
 				gRenderer->Draw(std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - time).count());
+				using namespace std::chrono_literals;
+				std::this_thread::sleep_for(10ms);
 			}
 		}
 	}
+
+	delete gBoxMesh; gBoxMesh = nullptr;
+	gRenderer->Finalize(); gRenderer = nullptr;
 
     return (int) msg.wParam;
 }
@@ -218,4 +228,76 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
         break;
     }
     return (INT_PTR)FALSE;
+}
+
+
+struct Vertex
+{
+	float X, Y, Z;
+	float R, G, B, A;
+};
+
+struct MeshGeometry
+{
+	// Give it a name so we can look it up by name.
+	std::string Name;
+
+	fb::IVertexBufferIntPtr VertexBuffer;
+	fb::IIndexBufferIntPtr IndexBuffer;
+
+	bool IsValid() const noexcept
+	{
+		return VertexBuffer != nullptr;
+	}
+};
+
+bool BuildBoxGeometry()
+{
+	std::array<Vertex, 8> vertices =
+	{
+		Vertex{-1.0f, -1.0f, -1.0f,		1.0f, 1.0f, 1.0f, 1.0f},
+		Vertex{-1.0f, +1.0f, -1.0f,		0.0f, 0.0f, 0.0f, 1.0f},
+		Vertex{+1.0f, +1.0f, -1.0f,		1.0f, 0.0f, 0.0f, 1.0f},
+		Vertex{+1.0f, -1.0f, -1.0f,		0.0f, 1.0f, 0.0f, 1.0f},
+		Vertex{-1.0f, -1.0f, +1.0f,		0.0f, 0.0f, 1.0f, 1.0f},
+		Vertex{-1.0f, +1.0f, +1.0f,		1.0f, 1.0f, 0.0f, 1.0f}, // yellow
+		Vertex{+1.0f, +1.0f, +1.0f,		0.0f, 1.0f, 1.0f, 1.0f}, // cyan
+		Vertex{+1.0f, -1.0f, +1.0f,		1.0f, 0.0f, 1.0f, 1.0f}, // magenta
+	};
+
+	std::array<std::uint16_t, 36> indices =
+	{
+		// front face
+		0, 1, 2,
+		0, 2, 3,
+
+		// back face
+		4, 6, 5,
+		4, 7, 6,
+
+		// left face
+		4, 5, 1,
+		4, 1, 0,
+
+		// right face
+		3, 2, 6,
+		3, 6, 7,
+
+		// top face
+		1, 5, 6,
+		1, 6, 2,
+
+		// bottom face
+		4, 0, 3,
+		4, 3, 7
+	};
+
+	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+	gBoxMesh = new MeshGeometry;
+	gBoxMesh->Name = "boxGeo";
+	gBoxMesh->VertexBuffer = gRenderer->CreateVertexBuffer(vertices.data(), vbByteSize, sizeof(Vertex), false);
+	gBoxMesh->IndexBuffer = gRenderer->CreateIndexBuffer(indices.data(), ibByteSize, fb::EDataFormat::R16_UINT, false);
+	return gBoxMesh->IsValid();
 }

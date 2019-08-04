@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "RendererD3D12.h"
 #include "Util.h"
+#include "VertexBuffer.h"
+#include "IndexBuffer.h"
 
 using namespace fb;
 using Microsoft::WRL::ComPtr;
@@ -11,18 +13,11 @@ extern "C" {
 	{
 		return new RendererD3D12();
 	}
-
-	void DeleteRendererD3D12(fb::IRenderer* renderer)
-	{
-		delete renderer;
-	}
 }
 
 static void Test()
 {
-	int a[2][2] = { 1, 2, 3, 4 };
-	int k = 0;
-	++k;
+	
 }
 
 bool RendererD3D12::Initialize(void* windowHandle)
@@ -80,10 +75,10 @@ bool RendererD3D12::Initialize(void* windowHandle)
 	return true;
 }
 
-bool RendererD3D12::Finalize()
+void RendererD3D12::Finalize()
 {
 	gRendererD3D12 = nullptr;
-	return true;
+	delete this;	
 }
 
 void RendererD3D12::OnResized()
@@ -227,6 +222,26 @@ void RendererD3D12::Draw(float dt)
 	// done for simplicity.  Later we will show how to organize our rendering code
 	// so we do not have to wait per frame.
 	FlushCommandQueue();
+}
+
+IVertexBuffer* RendererD3D12::CreateVertexBuffer(const void* vertexData, UINT size, UINT stride, bool keepData)
+{
+	auto vb = new VertexBuffer();
+	if (!vb->Initialize(vertexData, size, stride, keepData))
+	{
+		delete vb; vb = nullptr;
+	}
+	return vb;
+}
+
+IIndexBuffer* RendererD3D12::CreateIndexBuffer(const void* indexData, UINT size, EDataFormat format, bool keepData)
+{
+	auto ib = new IndexBuffer();
+	if (!ib->Initialize(indexData, size, format, keepData))
+	{
+		delete ib; ib = nullptr;
+	}
+	return ib;
 }
 
 void RendererD3D12::LogAdapters()

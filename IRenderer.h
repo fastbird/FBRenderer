@@ -1,5 +1,6 @@
 #pragma once
 #include <vector>
+#include "../FBCommon/IInterface.h"
 
 typedef unsigned int        UINT;
 
@@ -154,26 +155,37 @@ namespace fb
 		UINT InstanceDataStepRate;
 	};
 
-	class IVertexBuffer
+	FBDeclareIntrusivePointer(IVertexBuffer);
+	class IVertexBuffer : public IInterface
 	{
 	public:
 		virtual bool Initialize(const void* vertexData, UINT size, UINT stride, bool keepData) = 0;
+		virtual UINT GetSize() const = 0;
+		virtual UINT GetStride() const = 0;
 	};
+	FBDeclareIntrusivePointer2(IVertexBuffer);
 
-	class IIndexBuffer
+	FBDeclareIntrusivePointer(IIndexBuffer);
+	class IIndexBuffer : public IInterface
 	{
 	public:
 		virtual bool Initialize(const void* indexData, UINT size, EDataFormat format, bool keepData) = 0;
+		virtual UINT GetSize() const = 0;
+		virtual EDataFormat GetFormat() const = 0;
 	};
+	FBDeclareIntrusivePointer2(IIndexBuffer);
 
 	class IRenderer
 	{
 	public:
 		virtual bool Initialize(void* windowHandle) = 0;
-		virtual bool Finalize() = 0;
+		virtual void Finalize() = 0;
 
 		virtual void OnResized() = 0;
 
 		virtual void Draw(float dt) = 0;
+
+		virtual IVertexBuffer* CreateVertexBuffer(const void* vertexData, UINT size, UINT stride, bool keepData) = 0;
+		virtual IIndexBuffer* CreateIndexBuffer(const void* indexData, UINT size, EDataFormat format, bool keepData) = 0;
 	};
 }
