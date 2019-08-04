@@ -34,11 +34,17 @@ namespace fb
 
 	public:
 		
+		// IRenderer Interfaces
 		virtual bool Initialize(void* windowHandle) override;
 		virtual bool Finalize() override;
 		virtual void OnResized() override;
 		virtual void Draw(float dt) override;
 
+
+		// Owning Functions
+		Microsoft::WRL::ComPtr<ID3D12Resource> CreateDefaultBuffer(
+			const void* initData,
+			UINT64 byteSize);
 
 	private:
 
@@ -59,6 +65,7 @@ namespace fb
 		D3D12_CPU_DESCRIPTOR_HANDLE CurrentBackBufferView()const;
 		D3D12_CPU_DESCRIPTOR_HANDLE DepthStencilView()const;
 	};
+	extern RendererD3D12* gRendererD3D12;
 }
 
 extern "C"

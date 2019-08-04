@@ -4,6 +4,7 @@
 
 using namespace fb;
 using Microsoft::WRL::ComPtr;
+RendererD3D12* fb::gRendererD3D12 = nullptr;
 
 extern "C" {
 	fb::IRenderer* CreateRendererD3D12()
@@ -17,8 +18,19 @@ extern "C" {
 	}
 }
 
+static void Test()
+{
+	int a[2][2] = { 1, 2, 3, 4 };
+	int k = 0;
+	++k;
+}
+
 bool RendererD3D12::Initialize(void* windowHandle)
 {
+	gRendererD3D12 = this;
+
+	Test();
+
 	WindowHandle = (HWND)windowHandle;
 #ifdef _DEBUG
 	// Enable the D3D12 debug layer.
@@ -70,6 +82,7 @@ bool RendererD3D12::Initialize(void* windowHandle)
 
 bool RendererD3D12::Finalize()
 {
+	gRendererD3D12 = nullptr;
 	return true;
 }
 
@@ -382,6 +395,15 @@ UINT RendererD3D12::GetClientHeight()
 	return r.bottom - r.top;
 }
 
+struct PendingUploaderRemovalInfo
+{
+	PendingUploaderRemovalInfo(ID3D12Resource* uploader)
+		: Uploader(uploader) {}
+
+	ID3D12Resource* Uploader;
+};
+std::vector<PendingUploaderRemovalInfo> PendingUploaderRemovalInfos;
+
 void RendererD3D12::FlushCommandQueue()
 {
 	++CurrentFence;
@@ -403,6 +425,13 @@ void RendererD3D12::FlushCommandQueue()
 		WaitForSingleObject(eventHandle, INFINITE);
 		CloseHandle(eventHandle);
 	}
+
+	for (auto info : PendingUploaderRemovalInfos)
+	{
+		if (info.Uploader)
+			info.Uploader->Release();
+	}
+	PendingUploaderRemovalInfos.clear();
 }
 
 ID3D12Resource* RendererD3D12::CurrentBackBuffer()const
@@ -421,4 +450,45 @@ D3D12_CPU_DESCRIPTOR_HANDLE RendererD3D12::CurrentBackBufferView()const
 D3D12_CPU_DESCRIPTOR_HANDLE RendererD3D12::DepthStencilView()const
 {
 	return DsvHeap->GetCPUDescriptorHandleForHeapStart();
+}
+
+Microsoft::WRL::ComPtr<ID3D12Resource> RendererD3D12::CreateDefaultBuffer(
+	const void* initData,
+	UINT64 byteSize)
+{
+	ComPtr<ID3D12Resource> defaultBuffer;
+	ID3D12Resource* uploadBuffer = nullptr;
+
+	ThrowIfFailed(Device->CreateCommittedResource(
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+		D3D12_HEAP_FLAG_NONE,
+		&CD3DX12_RESOURCE_DESC::Buffer(byteSize),
+		D3D12_RESOURCE_STATE_COMMON,
+		nullptr,
+		IID_PPV_ARGS(defaultBuffer.GetAddressOf())));
+
+	ThrowIfFailed(Device->CreateCommittedResource(
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+		D3D12_HEAP_FLAG_NONE,
+		&CD3DX12_RESOURCE_DESC::Buffer(byteSize),
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(&uploadBuffer)));
+
+	D3D12_SUBRESOURCE_DATA subResourceData = {};
+	subResourceData.pData = initData;
+	subResourceData.RowPitch = byteSize;
+	subResourceData.SlicePitch = subResourceData.RowPitch;
+
+	
+	CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(defaultBuffer.Get(),
+		D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST));
+	UpdateSubresources<1>(CommandList.Get(), defaultBuffer.Get(), uploadBuffer, 0, 0, 1, &subResourceData);
+	CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(defaultBuffer.Get(),
+		D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_GENERIC_READ));
+
+	// going to delete the upload buffer after commands are flushed.
+	PendingUploaderRemovalInfos.push_back(PendingUploaderRemovalInfo(uploadBuffer));
+
+	return defaultBuffer;
 }
