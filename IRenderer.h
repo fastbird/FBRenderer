@@ -1,6 +1,6 @@
 #pragma once
 #include <vector>
-#include "../FBCommon/IInterface.h"
+#include "../FBCommon/IRefCounted.h"
 
 typedef unsigned int        UINT;
 
@@ -156,9 +156,10 @@ namespace fb
 	};
 
 	FBDeclareIntrusivePointer(IVertexBuffer);
-	class IVertexBuffer : public IInterface
+	class IVertexBuffer : public IRefCounted
 	{
 	public:
+		virtual ~IVertexBuffer() {}
 		virtual bool Initialize(const void* vertexData, UINT size, UINT stride, bool keepData) = 0;
 		virtual UINT GetSize() const = 0;
 		virtual UINT GetStride() const = 0;
@@ -166,14 +167,26 @@ namespace fb
 	FBDeclareIntrusivePointer2(IVertexBuffer);
 
 	FBDeclareIntrusivePointer(IIndexBuffer);
-	class IIndexBuffer : public IInterface
+	class IIndexBuffer : public IRefCounted
 	{
 	public:
+		virtual ~IIndexBuffer() {}
 		virtual bool Initialize(const void* indexData, UINT size, EDataFormat format, bool keepData) = 0;
 		virtual UINT GetSize() const = 0;
 		virtual EDataFormat GetFormat() const = 0;
 	};
 	FBDeclareIntrusivePointer2(IIndexBuffer);
+
+	FBDeclareIntrusivePointer(IUploadBuffer);
+	class IUploadBuffer : public IRefCounted
+	{
+	public:
+		virtual ~IUploadBuffer() {}
+		// align : 256 for constant buffers. 0 for otherwise.
+		virtual bool Initialize(UINT elementSize, UINT align, UINT count) = 0;
+		virtual void CopyData(UINT elementIndex, void* elementData) = 0;
+	};
+	FBDeclareIntrusivePointer2(IUploadBuffer);
 
 	class IRenderer
 	{
@@ -187,5 +200,6 @@ namespace fb
 
 		virtual IVertexBuffer* CreateVertexBuffer(const void* vertexData, UINT size, UINT stride, bool keepData) = 0;
 		virtual IIndexBuffer* CreateIndexBuffer(const void* indexData, UINT size, EDataFormat format, bool keepData) = 0;
+		virtual IUploadBuffer* CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer) = 0;
 	};
 }

@@ -3,6 +3,7 @@
 #include "Util.h"
 #include "VertexBuffer.h"
 #include "IndexBuffer.h"
+#include "UploadBuffer.h"
 
 using namespace fb;
 using Microsoft::WRL::ComPtr;
@@ -17,6 +18,7 @@ extern "C" {
 
 static void Test()
 {
+	DirectX::PackedVector::XMCOLOR color;
 	
 }
 
@@ -242,6 +244,16 @@ IIndexBuffer* RendererD3D12::CreateIndexBuffer(const void* indexData, UINT size,
 		delete ib; ib = nullptr;
 	}
 	return ib;
+}
+
+IUploadBuffer* RendererD3D12::CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer)
+{
+	auto ub = new UploadBuffer();
+	if (!ub->Initialize(elementSize, constantBuffer ? 256 : 0, count))
+	{
+		delete ub; ub = nullptr;
+	}
+	return ub;
 }
 
 void RendererD3D12::LogAdapters()

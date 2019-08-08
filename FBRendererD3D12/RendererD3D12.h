@@ -41,12 +41,15 @@ namespace fb
 		virtual void Draw(float dt) override;
 		virtual IVertexBuffer* CreateVertexBuffer(const void* vertexData, UINT size, UINT stride, bool keepData) override;
 		virtual IIndexBuffer* CreateIndexBuffer(const void* indexData, UINT size, EDataFormat format, bool keepData) override;
+		virtual IUploadBuffer* CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer) override;
 
 
 		// Owning Functions
 		Microsoft::WRL::ComPtr<ID3D12Resource> CreateDefaultBuffer(
 			const void* initData,
 			UINT64 byteSize);
+
+		ID3D12Device* GetDevice() const { return Device.Get(); }
 
 	private:
 

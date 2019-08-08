@@ -4,6 +4,7 @@
 #include "framework.h"
 #include "FBRendererTest.h"
 #include "../FBRenderer.h"
+#include "../../FBCommon/glm.h"
 #include <chrono>
 #include <thread>
 #include <array>
@@ -12,6 +13,12 @@
 
 fb::IRenderer* gRenderer = nullptr;
 struct MeshGeometry* gBoxMesh = nullptr;
+float Radius = 10.0f;
+float Phi = 0.f;
+float Theta = 0.f;
+glm::mat4 WorldMat, ViewMat, ProjMat;
+fb::IUploadBuffer* UploadBuffer = nullptr;
+
 // Global Variables:
 HINSTANCE hInst;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
@@ -23,6 +30,13 @@ BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 bool				BuildBoxGeometry();
+void Update(float dt);
+
+void Test()
+{
+	auto float16size = sizeof(float[16]);
+
+}
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
@@ -33,7 +47,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(lpCmdLine);
 
     // TODO: Place code here.
-
+	Test();
     // Initialize global strings
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
     LoadStringW(hInstance, IDC_FBRENDERERTEST, szWindowClass, MAX_LOADSTRING);
@@ -63,9 +77,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		else
 		{
 			static auto time = std::chrono::high_resolution_clock::now();
+			auto dt = std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - time).count();
+			Update(dt);
 			if (gRenderer)
 			{
-				gRenderer->Draw(std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - time).count());
+				gRenderer->Draw(dt);
 				using namespace std::chrono_literals;
 				std::this_thread::sleep_for(10ms);
 			}
@@ -73,7 +89,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	}
 
 	delete gBoxMesh; gBoxMesh = nullptr;
+	delete UploadBuffer; UploadBuffer = nullptr;
 	gRenderer->Finalize(); gRenderer = nullptr;
+	
 
     return (int) msg.wParam;
 }
@@ -132,6 +150,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    UpdateWindow(hWnd);
 
    gRenderer = fb::InitRenderer(fb::RendererType::D3D12, (void*)hWnd);
+   UploadBuffer = gRenderer->CreateUploadBuffer(sizeof(float[16]), 1, true);
 
    return gRenderer != nullptr;
 }
@@ -300,4 +319,23 @@ bool BuildBoxGeometry()
 	gBoxMesh->VertexBuffer = gRenderer->CreateVertexBuffer(vertices.data(), vbByteSize, sizeof(Vertex), false);
 	gBoxMesh->IndexBuffer = gRenderer->CreateIndexBuffer(indices.data(), ibByteSize, fb::EDataFormat::R16_UINT, false);
 	return gBoxMesh->IsValid();
+}
+
+void Update(float dt)
+{
+	// Convert Spherical to Cartesian coordinates.
+	float x = Radius * sinf(Phi) * cosf(Theta);
+	float z = Radius * sinf(Phi) * sinf(Theta);
+	float y = Radius * cosf(Phi);
+
+	// Build the view matrix.
+	glm::vec3 eyePos(x, y, z);
+	glm::vec3 target(0, 0, 0);
+	ViewMat = glm::lookAtLH(eyePos, target, glm::vec3(0, 1, 0));
+	auto wvp = WorldMat * ViewMat * ProjMat;
+
+	auto float16size = sizeof(float[16]);
+	assert(sizeof(wvp) == sizeof(float[16]));
+	UploadBuffer->CopyData(0, &wvp);
+	// Update the constant buffer with the latest worldViewProj matrix.
 }

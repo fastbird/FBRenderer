@@ -8,3 +8,8 @@ DxException::DxException(HRESULT hr, const std::wstring& functionName, const std
 	LineNumber(lineNumber)
 {
 }
+
+std::wstring DxException::ToString() const
+{
+	return L"Error.";
+}
