@@ -245,12 +245,30 @@ IIndexBuffer* RendererD3D12::CreateIndexBuffer(const void* indexData, UINT size,
 	return ib;
 }
 
-IUploadBuffer* RendererD3D12::CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer)
+IUploadBuffer* RendererD3D12::CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer, CBVHeapType heapType)
 {
 	auto ub = new UploadBuffer();
 	if (!ub->Initialize(elementSize, constantBuffer ? 256 : 0, count))
 	{
-		delete ub; ub = nullptr;
+		delete ub;
+		return nullptr;
+	}
+	switch (heapType)
+	{
+	case CBVHeapType::Default:
+	{
+		D3D12_GPU_VIRTUAL_ADDRESS cbAddress = ub->Resource->GetGPUVirtualAddress();		
+		// Insert offsetting code if necessary.
+
+		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
+		cbvDesc.BufferLocation = cbAddress;
+		cbvDesc.SizeInBytes = ub->ElementSize;
+
+		Device->CreateConstantBufferView(
+			&cbvDesc,
+			CbvHeap->GetCPUDescriptorHandleForHeapStart());
+		break;
+	}
 	}
 	return ub;
 }

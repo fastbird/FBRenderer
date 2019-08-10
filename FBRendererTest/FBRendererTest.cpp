@@ -17,7 +17,7 @@ float Radius = 10.0f;
 float Phi = 0.f;
 float Theta = 0.f;
 glm::mat4 WorldMat, ViewMat, ProjMat;
-fb::IUploadBuffer* UploadBuffer = nullptr;
+fb::IUploadBuffer* ConstantBuffer = nullptr;
 POINT LastMousePos;
 
 // Global Variables:
@@ -114,7 +114,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	}
 
 	delete gBoxMesh; gBoxMesh = nullptr;
-	delete UploadBuffer; UploadBuffer = nullptr;
+	delete ConstantBuffer; ConstantBuffer = nullptr;
 	gRenderer->Finalize(); gRenderer = nullptr;
 	
 
@@ -175,7 +175,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    UpdateWindow(WindowHandle);
 
    gRenderer = fb::InitRenderer(fb::RendererType::D3D12, (void*)WindowHandle);
-   UploadBuffer = gRenderer->CreateUploadBuffer(sizeof(float[16]), 1, true);
+   ConstantBuffer = gRenderer->CreateUploadBuffer(sizeof(float[16]), 1, true, fb::CBVHeapType::Default);
 
    return gRenderer != nullptr;
 }
@@ -352,7 +352,7 @@ void Update(float dt)
 
 	auto float16size = sizeof(float[16]);
 	assert(sizeof(wvp) == sizeof(float[16]));
-	UploadBuffer->CopyData(0, &wvp);
+	ConstantBuffer->CopyData(0, &wvp);
 }
 void OnMouseMove(WPARAM btnState, int x, int y)
 {

@@ -6,6 +6,11 @@ typedef unsigned int        UINT;
 
 namespace fb
 {
+
+	enum class CBVHeapType {
+		None,
+		Default
+	};
 	enum class EVertexElementType : UINT
 	{
 		Position,
@@ -200,6 +205,6 @@ namespace fb
 
 		virtual IVertexBuffer* CreateVertexBuffer(const void* vertexData, UINT size, UINT stride, bool keepData) = 0;
 		virtual IIndexBuffer* CreateIndexBuffer(const void* indexData, UINT size, EDataFormat format, bool keepData) = 0;
-		virtual IUploadBuffer* CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer) = 0;
+		virtual IUploadBuffer* CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer, CBVHeapType heapType) = 0;
 	};
 }
