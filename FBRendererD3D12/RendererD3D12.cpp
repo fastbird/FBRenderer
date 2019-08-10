@@ -204,6 +204,13 @@ void RendererD3D12::Draw(float dt)
 	// Specify the buffers we are going to render to.
 	CommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
 
+	// *************
+	// TEST CODE
+	CommandList->SetGraphicsRootSignature(RootSignature.Get());
+	ID3D12DescriptorHeap* descriptorHeaps[] = { CbvHeap.Get() };
+	CommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+	CommandList->SetGraphicsRootDescriptorTable(0, CbvHeap->GetGPUDescriptorHandleForHeapStart());
+
 	// Indicate a state transition on the resource usage.
 	CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
@@ -271,6 +278,36 @@ IUploadBuffer* RendererD3D12::CreateUploadBuffer(UINT elementSize, UINT count, b
 	}
 	}
 	return ub;
+}
+
+void RendererD3D12::TestCreateRootSignatureForSimpleBox()
+{
+	CD3DX12_ROOT_PARAMETER slotRootParameter[1];
+
+	// Create a single descriptor table of CBVs.
+	CD3DX12_DESCRIPTOR_RANGE cbvTable;
+	cbvTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
+	slotRootParameter[0].InitAsDescriptorTable(1, &cbvTable);
+
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(1, slotRootParameter, 0, nullptr,
+		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+
+	ComPtr<ID3DBlob> serializedRootSig = nullptr;
+	ComPtr<ID3DBlob> errorBlob = nullptr;
+	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+		serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
+
+	if (errorBlob != nullptr)
+	{
+		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+	}
+	ThrowIfFailed(hr);
+
+	ThrowIfFailed(Device->CreateRootSignature(
+		0,
+		serializedRootSig->GetBufferPointer(),
+		serializedRootSig->GetBufferSize(),
+		IID_PPV_ARGS(&RootSignature)));
 }
 
 void RendererD3D12::LogAdapters()

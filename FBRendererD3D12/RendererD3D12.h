@@ -17,6 +17,7 @@ namespace fb
 		Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> RtvHeap;
 		Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> DsvHeap;
 		Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> CbvHeap;
+		Microsoft::WRL::ComPtr<ID3D12RootSignature> RootSignature;
 		HWND WindowHandle = 0;
 		UINT RtvDescriptorSize = 0;
 		UINT DsvDescriptorSize = 0;
@@ -43,6 +44,7 @@ namespace fb
 		virtual IVertexBuffer* CreateVertexBuffer(const void* vertexData, UINT size, UINT stride, bool keepData) override;
 		virtual IIndexBuffer* CreateIndexBuffer(const void* indexData, UINT size, EDataFormat format, bool keepData) override;
 		virtual IUploadBuffer* CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer, CBVHeapType heapType) override;
+		virtual void TestCreateRootSignatureForSimpleBox() override;
 
 		// Owning Functions
 		Microsoft::WRL::ComPtr<ID3D12Resource> CreateDefaultBuffer(

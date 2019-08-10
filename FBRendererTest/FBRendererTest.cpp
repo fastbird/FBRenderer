@@ -176,6 +176,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    gRenderer = fb::InitRenderer(fb::RendererType::D3D12, (void*)WindowHandle);
    ConstantBuffer = gRenderer->CreateUploadBuffer(sizeof(float[16]), 1, true, fb::CBVHeapType::Default);
+   gRenderer->TestCreateRootSignatureForSimpleBox();
 
    return gRenderer != nullptr;
 }

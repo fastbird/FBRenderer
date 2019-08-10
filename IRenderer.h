@@ -206,5 +206,8 @@ namespace fb
 		virtual IVertexBuffer* CreateVertexBuffer(const void* vertexData, UINT size, UINT stride, bool keepData) = 0;
 		virtual IIndexBuffer* CreateIndexBuffer(const void* indexData, UINT size, EDataFormat format, bool keepData) = 0;
 		virtual IUploadBuffer* CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer, CBVHeapType heapType) = 0;
+		
+		
+		virtual void TestCreateRootSignatureForSimpleBox() = 0;
 	};
 }
