@@ -16,6 +16,7 @@ namespace fb
 		Microsoft::WRL::ComPtr<ID3D12Resource> DepthStencilBuffer;
 		Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> RtvHeap;
 		Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> DsvHeap;
+		Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> CbvHeap;
 		HWND WindowHandle = 0;
 		UINT RtvDescriptorSize = 0;
 		UINT DsvDescriptorSize = 0;
@@ -43,13 +44,14 @@ namespace fb
 		virtual IIndexBuffer* CreateIndexBuffer(const void* indexData, UINT size, EDataFormat format, bool keepData) override;
 		virtual IUploadBuffer* CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer) override;
 
-
 		// Owning Functions
 		Microsoft::WRL::ComPtr<ID3D12Resource> CreateDefaultBuffer(
 			const void* initData,
 			UINT64 byteSize);
 
 		ID3D12Device* GetDevice() const { return Device.Get(); }
+
+		// Add Public Func;
 
 	private:
 
@@ -69,6 +71,10 @@ namespace fb
 		ID3D12Resource* CurrentBackBuffer()const;
 		D3D12_CPU_DESCRIPTOR_HANDLE CurrentBackBufferView()const;
 		D3D12_CPU_DESCRIPTOR_HANDLE DepthStencilView()const;
+
+		void BuildDescriptorHeaps();
+
+		// Add Private Func
 	};
 	extern RendererD3D12* gRendererD3D12;
 }

@@ -30,7 +30,6 @@ bool UploadBuffer::Initialize(UINT elementSize, UINT align, UINT count)
 		OutputDebugString(ex.ToString().c_str());
 		return false;
 	}
-
 	return true;
 }
 

@@ -18,9 +18,11 @@ float Phi = 0.f;
 float Theta = 0.f;
 glm::mat4 WorldMat, ViewMat, ProjMat;
 fb::IUploadBuffer* UploadBuffer = nullptr;
+POINT LastMousePos;
 
 // Global Variables:
-HINSTANCE hInst;                                // current instance
+HINSTANCE hInst;       // current instance
+HWND WindowHandle;
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 
@@ -31,6 +33,29 @@ LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 bool				BuildBoxGeometry();
 void Update(float dt);
+void OnMouseMove(WPARAM btnState, int x, int y);
+void OnMouseDown(WPARAM btnState, int x, int y);
+
+
+struct Vertex
+{
+	float X, Y, Z;
+	float R, G, B, A;
+};
+
+struct MeshGeometry
+{
+	// Give it a name so we can look it up by name.
+	std::string Name;
+
+	fb::IVertexBufferIntPtr VertexBuffer;
+	fb::IIndexBufferIntPtr IndexBuffer;
+
+	bool IsValid() const noexcept
+	{
+		return VertexBuffer != nullptr;
+	}
+};
 
 void Test()
 {
@@ -138,18 +163,18 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
    hInst = hInstance; // Store instance handle in our global variable
 
-   HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
+   WindowHandle = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
       CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
 
-   if (!hWnd)
+   if (!WindowHandle)
    {
       return FALSE;
    }
 
-   ShowWindow(hWnd, nCmdShow);
-   UpdateWindow(hWnd);
+   ShowWindow(WindowHandle, nCmdShow);
+   UpdateWindow(WindowHandle);
 
-   gRenderer = fb::InitRenderer(fb::RendererType::D3D12, (void*)hWnd);
+   gRenderer = fb::InitRenderer(fb::RendererType::D3D12, (void*)WindowHandle);
    UploadBuffer = gRenderer->CreateUploadBuffer(sizeof(float[16]), 1, true);
 
    return gRenderer != nullptr;
@@ -219,10 +244,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			if (!Resizing)
 			{
 				gRenderer->OnResized();
+				ProjMat = glm::perspectiveFovLH(0.25f * glm::pi<float>(), (float)clientWidth, (float)clientHeight, 1.0f, 1000.0f);
 			}
 		}
 		return 0;
 	}
+	case WM_MOUSEMOVE:
+		OnMouseMove(wParam, LOWORD(lParam), HIWORD(lParam));
+		return 0;
+	case WM_LBUTTONDOWN:
+	case WM_MBUTTONDOWN:
+	case WM_RBUTTONDOWN:
+		OnMouseDown(wParam, LOWORD(lParam), HIWORD(lParam));
+		return 0;
     default:
         return DefWindowProc(hWnd, message, wParam, lParam);
     }
@@ -250,25 +284,7 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 }
 
 
-struct Vertex
-{
-	float X, Y, Z;
-	float R, G, B, A;
-};
 
-struct MeshGeometry
-{
-	// Give it a name so we can look it up by name.
-	std::string Name;
-
-	fb::IVertexBufferIntPtr VertexBuffer;
-	fb::IIndexBufferIntPtr IndexBuffer;
-
-	bool IsValid() const noexcept
-	{
-		return VertexBuffer != nullptr;
-	}
-};
 
 bool BuildBoxGeometry()
 {
@@ -337,5 +353,45 @@ void Update(float dt)
 	auto float16size = sizeof(float[16]);
 	assert(sizeof(wvp) == sizeof(float[16]));
 	UploadBuffer->CopyData(0, &wvp);
-	// Update the constant buffer with the latest worldViewProj matrix.
+}
+void OnMouseMove(WPARAM btnState, int x, int y)
+{
+	if ((btnState & MK_LBUTTON) != 0)
+	{
+		
+		// Make each pixel correspond to a quarter of a degree.
+		float dx = glm::radians(0.25f * static_cast<float>(x - LastMousePos.x));
+		float dy = glm::radians(0.25f * static_cast<float>(y - LastMousePos.y));
+
+		// Update angles based on input to orbit camera around box.
+		Theta += dx;
+		Phi += dy;
+
+		// Restrict the angle mPhi.
+		Phi = glm::clamp(Phi, 0.1f, glm::pi<float>() - 0.1f);
+	}
+	else if ((btnState & MK_RBUTTON) != 0)
+	{
+		// Make each pixel correspond to 0.005 unit in the scene.
+		float dx = 0.005f * static_cast<float>(x - LastMousePos.x);
+		float dy = 0.005f * static_cast<float>(y - LastMousePos.y);
+
+		// Update the camera radius based on input.
+		Radius += dx - dy;
+
+		// Restrict the radius.
+		Radius = glm::clamp(Radius, 3.0f, 15.0f);
+	}
+
+	LastMousePos.x = x;
+	LastMousePos.y = y;
+}
+
+void OnMouseDown(WPARAM btnState, int x, int y)
+{
+	LastMousePos.x = x;
+	LastMousePos.y = y;
+
+	
+	SetCapture(WindowHandle);
 }

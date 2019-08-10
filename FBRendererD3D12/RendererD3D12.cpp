@@ -18,7 +18,6 @@ extern "C" {
 
 static void Test()
 {
-	DirectX::PackedVector::XMCOLOR color;
 	
 }
 
@@ -518,4 +517,15 @@ Microsoft::WRL::ComPtr<ID3D12Resource> RendererD3D12::CreateDefaultBuffer(
 	PendingUploaderRemovalInfos.push_back(PendingUploaderRemovalInfo(uploadBuffer));
 
 	return defaultBuffer;
+}
+
+void RendererD3D12::BuildDescriptorHeaps()
+{
+	D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
+	cbvHeapDesc.NumDescriptors = 1;
+	cbvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	cbvHeapDesc.NodeMask = 0;
+	ThrowIfFailed(Device->CreateDescriptorHeap(&cbvHeapDesc,
+		IID_PPV_ARGS(&CbvHeap)));
 }
