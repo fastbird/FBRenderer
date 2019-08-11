@@ -50,7 +50,7 @@
     </Image>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="SimpleShader.hlsl">
+    <FxCompile Include="Shaders\SimpleShader.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
   </ItemGroup>

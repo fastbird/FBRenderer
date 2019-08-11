@@ -29,4 +29,10 @@ namespace fb
 		EInputClassification InputSlotClass;
 		UINT InstanceDataStepRate;
 	};
+
+	struct FInputLayoutDesc
+	{
+		const FInputElementDesc* pInputElementDescs;
+		UINT NumElements;
+	};
 }
