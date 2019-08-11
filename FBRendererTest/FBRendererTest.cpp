@@ -35,6 +35,7 @@ bool				BuildBoxGeometry();
 void Update(float dt);
 void OnMouseMove(WPARAM btnState, int x, int y);
 void OnMouseDown(WPARAM btnState, int x, int y);
+void BuildShadersAndInputLayout();
 
 
 struct Vertex
@@ -395,4 +396,17 @@ void OnMouseDown(WPARAM btnState, int x, int y)
 
 	
 	SetCapture(WindowHandle);
+}
+
+fb::IShaderIntPtr VS, PS;
+std::vector<fb::FInputElementDesc> InputLayout;
+void BuildShadersAndInputLayout()
+{
+	VS = gRenderer->CompileShader("Shaders/SimpleShader.hlsl", nullptr, 0, fb::EShaderType::VertexShader, "VS");
+	PS = gRenderer->CompileShader("Shaders/SimpleShader.hlsl", nullptr, 0, fb::EShaderType::PixelShader, "PS");
+
+	InputLayout = {
+		{ fb::EVertexElementType::Position, 0, fb::EDataFormat::R32G32B32_FLOAT, 0, 0, fb::EInputClassification::PerVertexData, 0 },
+		{ fb::EVertexElementType::Color, 0, fb::EDataFormat::R32G32B32A32_FLOAT, 0, 12, fb::EInputClassification::PerInstanceData, 0 }
+	};
 }

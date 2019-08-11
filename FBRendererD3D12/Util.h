@@ -9,10 +9,12 @@
 
 #define ReleaseCom(x) { if(x){ x->Release(); x = 0; } }
 
-inline std::wstring AnsiToWString(const std::string& str)
+namespace fb {
+
+inline std::wstring AnsiToWString(const char* str)
 {
-	WCHAR buffer[512];
-	MultiByteToWideChar(CP_ACP, 0, str.c_str(), -1, buffer, 512);
+	WCHAR buffer[1024];
+	MultiByteToWideChar(CP_ACP, 0, str, -1, buffer, 512);
 	return std::wstring(buffer);
 }
 
@@ -29,3 +31,10 @@ public:
 	std::wstring Filename;
 	int LineNumber = -1;
 };
+
+	Microsoft::WRL::ComPtr<ID3DBlob> CompileShader(
+		const std::wstring& filename,
+		const D3D_SHADER_MACRO* defines,
+		const std::string& entrypoint,
+		const std::string& target);
+}

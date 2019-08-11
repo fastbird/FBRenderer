@@ -44,7 +44,11 @@ namespace fb
 		virtual IVertexBuffer* CreateVertexBuffer(const void* vertexData, UINT size, UINT stride, bool keepData) override;
 		virtual IIndexBuffer* CreateIndexBuffer(const void* indexData, UINT size, EDataFormat format, bool keepData) override;
 		virtual IUploadBuffer* CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer, CBVHeapType heapType) override;
+		virtual IShader* CompileShader(
+			const char* filepath, FShaderMacro* macros, int numMacros, EShaderType shaderType, const char* entryFunctionName) override;
+
 		virtual void TestCreateRootSignatureForSimpleBox() override;
+
 
 		// Owning Functions
 		Microsoft::WRL::ComPtr<ID3D12Resource> CreateDefaultBuffer(

@@ -4,6 +4,7 @@
 #include "VertexBuffer.h"
 #include "IndexBuffer.h"
 #include "UploadBuffer.h"
+#include "Shader.h"
 
 using namespace fb;
 using Microsoft::WRL::ComPtr;
@@ -278,6 +279,54 @@ IUploadBuffer* RendererD3D12::CreateUploadBuffer(UINT elementSize, UINT count, b
 	}
 	}
 	return ub;
+}
+
+IShader* RendererD3D12::CompileShader(
+	const char* filepath, FShaderMacro* macros, int numMacros, EShaderType shaderType, const char* entryFunctionName)
+{
+	auto shader = new Shader;
+	D3D_SHADER_MACRO* d3dMacros = nullptr;
+	if (numMacros > 0) {
+		d3dMacros = new D3D_SHADER_MACRO[numMacros + 1];
+		for (int i = 0; i < numMacros; ++i) {
+			d3dMacros[i].Name = macros[i].Name;
+			d3dMacros[i].Definition = macros[i].Def;
+		}
+		d3dMacros[numMacros].Name = nullptr;
+		d3dMacros[numMacros].Definition = nullptr;
+	}
+	const char* shaderTarget = nullptr;
+	switch (shaderType) {
+	case EShaderType::PixelShader:
+		shaderTarget = "PS_5_1";
+		break;
+	case EShaderType::VertexShader:
+		shaderTarget = "VS_5_1";
+		break;
+	case EShaderType::GeometryShader:
+		shaderTarget = "GS_5_1";
+		break;
+	case EShaderType::HullShader:
+		shaderTarget = "HS_5_1";
+		break;
+	case EShaderType::DomainShader:
+		shaderTarget = "DS_5_1";
+		break;
+	case EShaderType::ComputeShader:
+		shaderTarget = "CS_5_1";
+		break;
+	}
+	assert(shaderTarget != nullptr);
+	try {
+		shader->ByteCode = fb::CompileShader(
+			AnsiToWString(filepath), d3dMacros, entryFunctionName, shaderTarget);
+	}
+	catch (fb::DxException& ex) {
+		OutputDebugString(ex.ToString().c_str());
+		delete shader; shader = nullptr;
+	}
+	delete[] macros;
+	return shader;
 }
 
 void RendererD3D12::TestCreateRootSignatureForSimpleBox()
