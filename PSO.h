@@ -2,6 +2,9 @@
 #include "Types.h"
 #include "InputElementDesc.h"
 #include "../FBCommon/Types.h"
+#define	FB_SIMULTANEOUS_RENDER_TARGET_COUNT	( 8 )
+#define	FB_DEFAULT_STENCIL_READ_MASK	( 0xff )
+#define	FB_DEFAULT_STENCIL_WRITE_MASK	( 0xff )
 // Pipeline State Object
 
 namespace fb {
@@ -74,8 +77,31 @@ namespace fb {
 		OR_INVERTED
 	};
 
+	namespace EColorWriteEnable
+	{
+		enum Enum
+		{
+			RED = 1,
+			GREEN = 2,
+			BLUE = 4,
+			ALPHA = 8,
+			ALL = (((RED | GREEN) | BLUE) | ALPHA)
+		};
+	}
+
 	struct FRenderTargetBlendDesc
 	{
+		FRenderTargetBlendDesc()
+			: BlendEnable(false)
+			, LogicOpEnable(false)
+			, SrcBlend(EBlend::ONE), DestBlend(EBlend::ZERO), BlendOp(EBlendOp::ADD)
+			, SrcBlendAlpha(EBlend::ONE), DestBlendAlpha(EBlend::ZERO), BlendOpAlpha(EBlendOp::ADD)
+			, LogicOp(ELogicOp::NOOP)
+			, RenderTargetWriteMask(EColorWriteEnable::ALL)
+		{			
+
+		}
+
 		BOOL BlendEnable;
 		BOOL LogicOpEnable;
 		EBlend SrcBlend;
@@ -90,10 +116,19 @@ namespace fb {
 
 	struct FBlendDesc
 	{
+		FBlendDesc()
+		{
+			AlphaToCoverageEnable = false;
+			IndependentBlendEnable = false;
+
+			const FRenderTargetBlendDesc defaultRenderTargetBlendDesc;
+			for (UINT i = 0; i < FB_SIMULTANEOUS_RENDER_TARGET_COUNT; ++i)
+				RenderTarget[i] = defaultRenderTargetBlendDesc;
+		}
+
 		bool AlphaToCoverageEnable;
 		bool IndependentBlendEnable;
-
-		FRenderTargetBlendDesc RenderTarget[8];
+		FRenderTargetBlendDesc RenderTarget[FB_SIMULTANEOUS_RENDER_TARGET_COUNT];
 	};
 
 	enum EFillMode
@@ -102,7 +137,14 @@ namespace fb {
 		SOLID = 3
 	};
 
-	enum class ConservativeRasterizationMode
+	enum ECullMode
+	{
+		NONE = 1,
+		FRONT = 2,
+		BACK = 3
+	};
+
+	enum class EConservativeRasterizationMode
 	{
 		OFF = 0,
 		ON = 1
@@ -110,8 +152,22 @@ namespace fb {
 
 	struct FRasterizerDesc
 	{
+		FRasterizerDesc()
+		{
+			FillMode = EFillMode::SOLID;
+			CullMode = ECullMode::BACK;
+			FrontCounterClockwise = false;
+			DepthBias =  0;
+			DepthBiasClamp = 0.0f;
+			SlopeScaledDepthBias = 0.0f;
+			DepthClipEnable = true;
+			MultisampleEnable = false;
+			AntialiasedLineEnable = false;
+			ForcedSampleCount = 0;
+			ConservativeRaster = EConservativeRasterizationMode::OFF;
+		}
 		EFillMode FillMode;
-		EFillMode CullMode;
+		ECullMode CullMode;
 		BOOL FrontCounterClockwise;
 		INT DepthBias;
 		FLOAT DepthBiasClamp;
@@ -120,7 +176,7 @@ namespace fb {
 		BOOL MultisampleEnable;
 		BOOL AntialiasedLineEnable;
 		UINT ForcedSampleCount;
-		ConservativeRasterizationMode ConservativeRaster;
+		EConservativeRasterizationMode ConservativeRaster;
 	};
 
 	enum class EDepthWriteMask
@@ -155,6 +211,13 @@ namespace fb {
 
 	struct FDepthStencilOpDesc
 	{
+		FDepthStencilOpDesc()
+		{
+			StencilFailOp = EStencilOp::KEEP;
+			StencilDepthFailOp = EStencilOp::KEEP;
+			StencilPassOp = EStencilOp::KEEP;
+			StencilFunc = EComparisonFunc::ALWAYS;
+		}
 		EStencilOp StencilFailOp;
 		EStencilOp StencilDepthFailOp;
 		EStencilOp StencilPassOp;
@@ -163,6 +226,15 @@ namespace fb {
 
 	struct FDepthStencilDesc
 	{
+		FDepthStencilDesc()
+		{
+			DepthEnable = true;
+			DepthWriteMask = EDepthWriteMask::ALL;
+			DepthFunc = EComparisonFunc::LESS;
+			StencilEnable = false;
+			StencilReadMask = FB_DEFAULT_STENCIL_READ_MASK;
+			StencilWriteMask = FB_DEFAULT_STENCIL_WRITE_MASK;
+		}
 		BOOL DepthEnable;
 		EDepthWriteMask DepthWriteMask;
 		EComparisonFunc DepthFunc;
@@ -201,14 +273,21 @@ namespace fb {
 		TOOL_DEBUG = 0x1
 	};
 
-	struct PSODesc
+	typedef struct FShaderByteCode
 	{
-		void* pRootSignature;
-		ByteArray VS;
-		ByteArray PS;
-		ByteArray DS;
-		ByteArray HS;
-		ByteArray GS;
+		const void* pShaderBytecode;
+		SIZE_T BytecodeLength;
+	};
+
+	using RootSignature = void;
+	struct FPSODesc
+	{
+		RootSignature* pRootSignature;
+		FShaderByteCode VS;
+		FShaderByteCode PS;
+		FShaderByteCode DS;
+		FShaderByteCode HS;
+		FShaderByteCode GS;
 		FStreamOutputDesc StreamOutput;
 		FBlendDesc BlendState;
 		UINT SampleMask;

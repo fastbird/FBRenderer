@@ -6,4 +6,5 @@ namespace fb {
 	using UINT8 = unsigned char;
 	using INT = int;
 	using FLOAT = float;
+	using PSOID = unsigned int;
 }

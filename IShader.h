@@ -23,6 +23,8 @@ namespace fb
 	{
 		EShaderType ShaderType;
 	public:
+		virtual BYTE* GetByteCode() = 0;
+		virtual UINT Size() = 0;
 
 	};
 	FBDeclareIntrusivePointer2(IShader);

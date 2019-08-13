@@ -5,6 +5,7 @@
 #include "DataFormat.h"
 #include "InputElementDesc.h"
 #include "IShader.h"
+#include "PSO.h"
 
 namespace fb
 {
@@ -60,9 +61,15 @@ namespace fb
 		virtual IVertexBuffer* CreateVertexBuffer(const void* vertexData, UINT size, UINT stride, bool keepData) = 0;
 		virtual IIndexBuffer* CreateIndexBuffer(const void* indexData, UINT size, EDataFormat format, bool keepData) = 0;
 		virtual IUploadBuffer* CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer, CBVHeapType heapType) = 0;
+		virtual PSOID CreateGraphicsPipelineState(const FPSODesc& psoDesc) = 0;
 		virtual IShader* CompileShader(const char* filepath, FShaderMacro* macros, int numMacros, EShaderType shaderType, const char* entryFunctionName) = 0;
+		virtual EDataFormat GetBackBufferFormat() const = 0;
+		virtual EDataFormat GetDepthStencilFormat() const = 0;
+		virtual int GetSampleCount() const = 0;
+		virtual int GetMsaaQuality() const = 0;
 		
 		
 		virtual void TestCreateRootSignatureForSimpleBox() = 0;
+		virtual RootSignature* TestGetRootSignatureForSimpleBox() = 0;
 	};
 }

@@ -411,3 +411,32 @@ void BuildShadersAndInputLayout()
 		{ fb::EVertexElementType::Color, 0, fb::EDataFormat::R32G32B32A32_FLOAT, 0, 12, fb::EInputClassification::PerInstanceData, 0 }
 	};
 }
+
+void BuildPSO()
+{
+	fb::PSODesc psoDesc;
+	ZeroMemory(&psoDesc, sizeof(fb::PSODesc));
+	psoDesc.InputLayout = { InputLayout.data(), (UINT)InputLayout.size() };
+	psoDesc.pRootSignature = gRenderer->TestGetRootSignatureForSimpleBox();
+	psoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(VS->GetByteCode()),
+		VS->Size()
+	};
+	psoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(PS->GetByteCode()),
+		PS->Size()
+	};
+	//psoDesc.RasterizerState
+	//psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	//psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+	psoDesc.SampleMask = UINT_MAX;
+	psoDesc.PrimitiveTopologyType = fb::EPrimitiveTopologyType::TRIANGLE;;
+	psoDesc.NumRenderTargets = 1;
+	psoDesc.RTVFormats[0] = gRenderer->GetBackBufferFormat();
+	psoDesc.SampleDesc.Count = gRenderer->GetSampleCount();
+	psoDesc.SampleDesc.Quality = gRenderer->GetMsaaQuality();
+	psoDesc.DSVFormat = gRenderer->GetDepthStencilFormat();
+	gRenderer->CreateGraphicsPipelineState(&psoDesc);
+}

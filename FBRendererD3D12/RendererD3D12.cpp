@@ -5,6 +5,7 @@
 #include "IndexBuffer.h"
 #include "UploadBuffer.h"
 #include "Shader.h"
+#include "ConverterD3D12.h"
 
 using namespace fb;
 using Microsoft::WRL::ComPtr;
@@ -281,6 +282,14 @@ IUploadBuffer* RendererD3D12::CreateUploadBuffer(UINT elementSize, UINT count, b
 	return ub;
 }
 
+PSOID RendererD3D12::CreateGraphicsPipelineState(const FPSODesc& psoDesc)
+{
+	ComPtr<ID3D12PipelineState> pso;
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = Convert(psoDesc);
+	Device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&pso));
+	PSOs.push_back()
+}
+
 IShader* RendererD3D12::CompileShader(
 	const char* filepath, FShaderMacro* macros, int numMacros, EShaderType shaderType, const char* entryFunctionName)
 {
@@ -329,6 +338,26 @@ IShader* RendererD3D12::CompileShader(
 	return shader;
 }
 
+EDataFormat RendererD3D12::GetBackBufferFormat() const
+{
+	return Convert(BackBufferFormat);
+}
+
+EDataFormat RendererD3D12::GetDepthStencilFormat() const
+{
+	return Convert(DepthStencilFormat);
+}
+
+int RendererD3D12::GetSampleCount() const
+{
+	return Msaa4xState ? 4 : 1;
+}
+
+int RendererD3D12::GetMsaaQuality() const
+{
+	return Msaa4xQuality;
+}
+
 void RendererD3D12::TestCreateRootSignatureForSimpleBox()
 {
 	CD3DX12_ROOT_PARAMETER slotRootParameter[1];
@@ -357,6 +386,11 @@ void RendererD3D12::TestCreateRootSignatureForSimpleBox()
 		serializedRootSig->GetBufferPointer(),
 		serializedRootSig->GetBufferSize(),
 		IID_PPV_ARGS(&RootSignature)));
+}
+
+void* RendererD3D12::TestGetRootSignatureForSimpleBox()
+{
+	return RootSignature.Get();
 }
 
 void RendererD3D12::LogAdapters()

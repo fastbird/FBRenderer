@@ -7,5 +7,7 @@ namespace fb {
 		Microsoft::WRL::ComPtr<ID3DBlob> ByteCode;
 	public:
 
+		virtual BYTE* GetByteCode() override;
+		virtual UINT Size() override;
 	};
 }
