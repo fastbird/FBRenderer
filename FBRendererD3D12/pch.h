@@ -21,6 +21,7 @@
 #include <string>
 #include <assert.h>
 #include <vector>
+#include <unordered_map>
 
 #define FBRendererD3D12_DLL _declspec(dllexport)
 

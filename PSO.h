@@ -273,10 +273,10 @@ namespace fb {
 		TOOL_DEBUG = 0x1
 	};
 
-	typedef struct FShaderByteCode
+	struct FShaderByteCode
 	{
 		const void* pShaderBytecode;
-		SIZE_T BytecodeLength;
+		UINT BytecodeLength;
 	};
 
 	using RootSignature = void;

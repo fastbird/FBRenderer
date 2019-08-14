@@ -286,8 +286,9 @@ PSOID RendererD3D12::CreateGraphicsPipelineState(const FPSODesc& psoDesc)
 {
 	ComPtr<ID3D12PipelineState> pso;
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = Convert(psoDesc);
-	Device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&pso));
-	PSOs.push_back()
+	ThrowIfFailed(Device->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&pso)));
+	PSOs.insert(std::make_pair(NextPSOId, pso));
+	return NextPSOId++;
 }
 
 IShader* RendererD3D12::CompileShader(

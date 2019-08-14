@@ -18,7 +18,8 @@ namespace fb
 		Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> DsvHeap;
 		Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> CbvHeap;
 		Microsoft::WRL::ComPtr<ID3D12RootSignature> RootSignature;
-		std::vector<ComPtr<ID3D12PipelineState>> PSOs;
+		std::unordered_map<PSOID, Microsoft::WRL::ComPtr<ID3D12PipelineState>> PSOs;
+		PSOID NextPSOId = 1;
 		HWND WindowHandle = 0;
 		UINT RtvDescriptorSize = 0;
 		UINT DsvDescriptorSize = 0;
