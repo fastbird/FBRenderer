@@ -13,10 +13,10 @@
 
 fb::IRenderer* gRenderer = nullptr;
 struct MeshGeometry* gBoxMesh = nullptr;
-float Radius = 10.0f;
-float Phi = 0.f;
-float Theta = 0.f;
-glm::mat4 WorldMat, ViewMat, ProjMat;
+float Radius = 5.0f;
+float Phi = glm::four_over_pi<float>();
+float Theta = 1.5f * glm::pi<float>();
+glm::mat4 WorldMat(1.0f), ViewMat(1.0f), ProjMat(1.0f);
 fb::IUploadBuffer* ConstantBuffer = nullptr;
 POINT LastMousePos;
 fb::PSOID SimpleBoxPSO;
