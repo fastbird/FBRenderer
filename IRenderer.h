@@ -73,6 +73,8 @@ namespace fb
 		virtual EDataFormat GetDepthStencilFormat() const = 0;
 		virtual int GetSampleCount() const = 0;
 		virtual int GetMsaaQuality() const = 0;
+		virtual int GetBackbufferWidth() const = 0;
+		virtual int GetBackbufferHeight() const = 0;
 		
 		virtual void TempResetCommandList() = 0;
 		virtual void TempCloseCommandList(bool runAndFlush) = 0;

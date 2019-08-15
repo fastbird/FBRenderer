@@ -53,10 +53,12 @@ namespace fb
 		virtual PSOID CreateGraphicsPipelineState(const FPSODesc& psoDesc) override;
 		virtual IShader* CompileShader(
 			const char* filepath, FShaderMacro* macros, int numMacros, EShaderType shaderType, const char* entryFunctionName) override;
-		virtual EDataFormat GetBackBufferFormat() const;
-		virtual EDataFormat GetDepthStencilFormat() const;
-		virtual int GetSampleCount() const;
-		virtual int GetMsaaQuality() const;
+		virtual EDataFormat GetBackBufferFormat() const override;
+		virtual EDataFormat GetDepthStencilFormat() const override;
+		virtual int GetSampleCount() const override;
+		virtual int GetMsaaQuality() const override;
+		virtual int GetBackbufferWidth() const override;
+		virtual int GetBackbufferHeight() const override;
 
 		virtual void TempResetCommandList() override;
 		virtual void TempCloseCommandList(bool runAndFlush) override;
@@ -89,8 +91,8 @@ namespace fb
 		void CreateSwapChain();
 		void CreateRtvAndDsvDescriptorHeaps();
 
-		UINT GetClientWidth();
-		UINT GetClientHeight();
+		UINT GetClientWidth() const;
+		UINT GetClientHeight() const;
 		
 		void FlushCommandQueue();
 

@@ -184,7 +184,9 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    gRenderer->RegisterDrawCallback(Draw);
    BuildBoxGeometry();
    gRenderer->TempCloseCommandList(true);
-   
+   auto clientWidth = gRenderer->GetBackbufferWidth();
+   auto clientHeight = gRenderer->GetBackbufferHeight();
+   ProjMat = glm::perspectiveFovLH(0.25f * glm::pi<float>(), (float)clientWidth, (float)clientHeight, 1.0f, 1000.0f);
 
    return gRenderer != nullptr;
 }
@@ -357,8 +359,8 @@ void Update(float dt)
 	glm::vec3 eyePos(x, y, z);
 	glm::vec3 target(0, 0, 0);
 	ViewMat = glm::lookAtLH(eyePos, target, glm::vec3(0, 1, 0));
-	auto wvp = WorldMat * ViewMat * ProjMat;
-
+	auto wvp = ProjMat * ViewMat * WorldMat;
+	wvp = glm::transpose(wvp);
 	auto float16size = sizeof(float[16]);
 	assert(sizeof(wvp) == sizeof(float[16]));
 	ConstantBuffer->CopyData(0, &wvp);

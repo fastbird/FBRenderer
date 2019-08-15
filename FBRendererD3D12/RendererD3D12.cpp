@@ -398,6 +398,16 @@ int RendererD3D12::GetMsaaQuality() const
 	return Msaa4xState ? Msaa4xQuality - 1 : 0;
 }
 
+int RendererD3D12::GetBackbufferWidth() const
+{
+	return GetClientWidth();
+}
+
+int RendererD3D12::GetBackbufferHeight() const
+{
+	return GetClientHeight();
+}
+
 void RendererD3D12::TempResetCommandList()
 {
 	ThrowIfFailed(CommandList->Reset(DirectCmdAllocator.Get(), nullptr));
@@ -660,7 +670,7 @@ void RendererD3D12::CreateRtvAndDsvDescriptorHeaps()
 		&dsvHeapDesc, IID_PPV_ARGS(DsvHeap.GetAddressOf())));
 }
 
-UINT RendererD3D12::GetClientWidth()
+UINT RendererD3D12::GetClientWidth() const
 {
 	assert(WindowHandle);
 	RECT r;
@@ -668,7 +678,7 @@ UINT RendererD3D12::GetClientWidth()
 	return r.right - r.left;
 }
 
-UINT RendererD3D12::GetClientHeight()
+UINT RendererD3D12::GetClientHeight() const
 {
 	assert(WindowHandle);
 	RECT r;
