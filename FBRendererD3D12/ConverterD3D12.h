@@ -110,6 +110,15 @@ namespace fb {
 
 	inline D3D12_INPUT_LAYOUT_DESC Convert(const FInputLayoutDesc& s)
 	{
+		/*LPCSTR SemanticName;
+		UINT SemanticIndex;
+		DXGI_FORMAT Format;
+		UINT InputSlot;
+		UINT AlignedByteOffset;
+		D3D12_INPUT_CLASSIFICATION InputSlotClass;
+		UINT InstanceDataStepRate;*/
+		//asert(sizeof(D3D12_INPUT_ELEMENT_DESC::SemanticName) == sizeof(FInputElementDesc::)
+
 		assert(sizeof(D3D12_INPUT_ELEMENT_DESC) == sizeof(FInputElementDesc));
 		return D3D12_INPUT_LAYOUT_DESC{
 			(const D3D12_INPUT_ELEMENT_DESC*)s.pInputElementDescs,
@@ -166,5 +175,9 @@ namespace fb {
 			desc.RTVFormats[i] = Convert(s.RTVFormats[i]);
 		}
 		return desc;
+	}
+
+	inline D3D_PRIMITIVE_TOPOLOGY Convert(EPrimitiveTopology s) {
+		return D3D_PRIMITIVE_TOPOLOGY(s);
 	}
 }

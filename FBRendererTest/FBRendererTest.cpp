@@ -36,6 +36,8 @@ void Update(float dt);
 void OnMouseMove(WPARAM btnState, int x, int y);
 void OnMouseDown(WPARAM btnState, int x, int y);
 void BuildShadersAndInputLayout();
+void BuildPSO();
+void Draw();
 
 
 struct Vertex
@@ -60,8 +62,6 @@ struct MeshGeometry
 
 void Test()
 {
-	auto float16size = sizeof(float[16]);
-
 }
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
@@ -84,8 +84,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     {
         return FALSE;
     }
-
-	BuildBoxGeometry();
 
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_FBRENDERERTEST));
 
@@ -176,9 +174,17 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    UpdateWindow(WindowHandle);
 
    gRenderer = fb::InitRenderer(fb::RendererType::D3D12, (void*)WindowHandle);
-   ConstantBuffer = gRenderer->CreateUploadBuffer(sizeof(float[16]), 1, true, fb::CBVHeapType::Default);
-   gRenderer->TestCreateRootSignatureForSimpleBox();
+   gRenderer->CreateCBVHeap(fb::ECBVHeapType::Default);
+
+   gRenderer->TempResetCommandList();
+   ConstantBuffer = gRenderer->CreateUploadBuffer(sizeof(float[16]), 1, true, fb::ECBVHeapType::Default);
    BuildShadersAndInputLayout();
+   gRenderer->TempCreateRootSignatureForSimpleBox();
+   BuildPSO();
+   gRenderer->RegisterDrawCallback(Draw);
+   BuildBoxGeometry();
+   gRenderer->TempCloseCommandList(true);
+   
 
    return gRenderer != nullptr;
 }
@@ -407,17 +413,16 @@ void BuildShadersAndInputLayout()
 	PS = gRenderer->CompileShader("Shaders/SimpleShader.hlsl", nullptr, 0, fb::EShaderType::PixelShader, "PS");
 
 	InputLayout = {
-		{ fb::EVertexElementType::Position, 0, fb::EDataFormat::R32G32B32_FLOAT, 0, 0, fb::EInputClassification::PerVertexData, 0 },
-		{ fb::EVertexElementType::Color, 0, fb::EDataFormat::R32G32B32A32_FLOAT, 0, 12, fb::EInputClassification::PerInstanceData, 0 }
+		{ "POSITION", 0, fb::EDataFormat::R32G32B32_FLOAT, 0, 0, fb::EInputClassification::PerVertexData, 0 },
+		{ "COLOR", 0, fb::EDataFormat::R32G32B32A32_FLOAT, 0, 12, fb::EInputClassification::PerVertexData, 0 }
 	};
 }
 
 void BuildPSO()
 {
 	fb::FPSODesc psoDesc;
-	ZeroMemory(&psoDesc, sizeof(fb::FPSODesc));
 	psoDesc.InputLayout = { InputLayout.data(), (UINT)InputLayout.size() };
-	psoDesc.pRootSignature = gRenderer->TestGetRootSignatureForSimpleBox();
+	psoDesc.pRootSignature = gRenderer->TempGetRootSignatureForSimpleBox();
 	psoDesc.VS =
 	{
 		reinterpret_cast<BYTE*>(VS->GetByteCode()),
@@ -431,7 +436,6 @@ void BuildPSO()
 	//psoDesc.RasterizerState
 	//psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 	//psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-	psoDesc.SampleMask = UINT_MAX;
 	psoDesc.PrimitiveTopologyType = fb::EPrimitiveTopologyType::TRIANGLE;;
 	psoDesc.NumRenderTargets = 1;
 	psoDesc.RTVFormats[0] = gRenderer->GetBackBufferFormat();
@@ -439,4 +443,16 @@ void BuildPSO()
 	psoDesc.SampleDesc.Quality = gRenderer->GetMsaaQuality();
 	psoDesc.DSVFormat = gRenderer->GetDepthStencilFormat();
 	SimpleBoxPSO = gRenderer->CreateGraphicsPipelineState(psoDesc);
+}
+
+void Draw()
+{
+	gRenderer->TempBindDescriptorHeap(fb::ECBVHeapType::Default);
+	gRenderer->TempBindRootSignature(gRenderer->TempGetRootSignatureForSimpleBox());
+
+	gRenderer->TempBindVertexBuffer(gBoxMesh->VertexBuffer);
+	gRenderer->TempBindIndexBuffer(gBoxMesh->IndexBuffer);
+	gRenderer->TempSetPrimitiveTopology(fb::EPrimitiveTopology::TRIANGLELIST);
+	gRenderer->TempBindRootDescriptorTable(0, fb::ECBVHeapType::Default);
+	gRenderer->TempDrawIndexedInstanced(gBoxMesh->IndexBuffer->GetElementCount());
 }

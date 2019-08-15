@@ -2,6 +2,7 @@
 #include "Types.h"
 #include "InputElementDesc.h"
 #include "../FBCommon/Types.h"
+#include "PrimitiveTopology.h"
 #define	FB_SIMULTANEOUS_RENDER_TARGET_COUNT	( 8 )
 #define	FB_DEFAULT_STENCIL_READ_MASK	( 0xff )
 #define	FB_DEFAULT_STENCIL_WRITE_MASK	( 0xff )
@@ -20,11 +21,11 @@ namespace fb {
 
 	struct FStreamOutputDesc
 	{
-		const FSODeclarationEntry* pSODeclaration;
-		UINT NumEntries;
-		const UINT* pBufferStrides;
-		UINT NumStrides;
-		UINT RasterizedStream;
+		const FSODeclarationEntry* pSODeclaration = nullptr;
+		UINT NumEntries = 0;
+		const UINT* pBufferStrides = nullptr;
+		UINT NumStrides = 0;
+		UINT RasterizedStream = 0;
 	};
 
 	enum class EBlend
@@ -263,8 +264,8 @@ namespace fb {
 
 	struct FSampleDesc
 	{
-		UINT Count;
-		UINT Quality;
+		UINT Count = 1;
+		UINT Quality = 0;
 	};
 
 	enum class EPipelineStateFlags
@@ -275,14 +276,14 @@ namespace fb {
 
 	struct FShaderByteCode
 	{
-		const void* pShaderBytecode;
-		UINT BytecodeLength;
+		const void* pShaderBytecode = nullptr;
+		UINT BytecodeLength = 0;
 	};
 
-	using RootSignature = void;
+	using RootSignature = void*;
 	struct FPSODesc
 	{
-		RootSignature* pRootSignature;
+		RootSignature pRootSignature = nullptr;
 		FShaderByteCode VS;
 		FShaderByteCode PS;
 		FShaderByteCode DS;
@@ -290,18 +291,19 @@ namespace fb {
 		FShaderByteCode GS;
 		FStreamOutputDesc StreamOutput;
 		FBlendDesc BlendState;
-		UINT SampleMask;
+		UINT SampleMask = UINT_MAX;
 		FRasterizerDesc RasterizerState;
 		FDepthStencilDesc DepthStencilState;
 		FInputLayoutDesc InputLayout;
-		EIndexBufferStripCutValue IBStripCutValue;
-		EPrimitiveTopologyType PrimitiveTopologyType;
-		UINT NumRenderTargets;
-		EDataFormat RTVFormats[8];
-		EDataFormat DSVFormat;
+		EIndexBufferStripCutValue IBStripCutValue = EIndexBufferStripCutValue::CUT_VALUE_DISABLED;
+		EPrimitiveTopologyType PrimitiveTopologyType = EPrimitiveTopologyType::UNDEFINED;
+		UINT NumRenderTargets = 0;
+		EDataFormat RTVFormats[8] = { EDataFormat::UNKNOWN, EDataFormat::UNKNOWN, EDataFormat::UNKNOWN , EDataFormat::UNKNOWN,
+			EDataFormat::UNKNOWN, EDataFormat::UNKNOWN, EDataFormat::UNKNOWN, EDataFormat::UNKNOWN};
+		EDataFormat DSVFormat = EDataFormat::UNKNOWN;
 		FSampleDesc SampleDesc;
-		UINT NodeMask;
+		UINT NodeMask = 0;
 		ByteArray CachedPSO;
-		EPipelineStateFlags Flags;
+		EPipelineStateFlags Flags = EPipelineStateFlags::NONE;
 	};
 }

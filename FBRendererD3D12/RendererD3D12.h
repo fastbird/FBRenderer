@@ -16,7 +16,7 @@ namespace fb
 		Microsoft::WRL::ComPtr<ID3D12Resource> DepthStencilBuffer;
 		Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> RtvHeap;
 		Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> DsvHeap;
-		Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> CbvHeap;
+		Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> DefaultCbvHeap;
 		Microsoft::WRL::ComPtr<ID3D12RootSignature> RootSignature;
 		std::unordered_map<PSOID, Microsoft::WRL::ComPtr<ID3D12PipelineState>> PSOs;
 		PSOID NextPSOId = 1;
@@ -36,16 +36,20 @@ namespace fb
 		D3D12_VIEWPORT ScreenViewport;
 		D3D12_RECT ScissorRect;
 
+		DrawCallbackFunc DrawCallback = nullptr;
+
 	public:
 		
 		// IRenderer Interfaces
 		virtual bool Initialize(void* windowHandle) override;
 		virtual void Finalize() override;
 		virtual void OnResized() override;
+		virtual void RegisterDrawCallback(DrawCallbackFunc func) override;
 		virtual void Draw(float dt) override;
 		virtual IVertexBuffer* CreateVertexBuffer(const void* vertexData, UINT size, UINT stride, bool keepData) override;
 		virtual IIndexBuffer* CreateIndexBuffer(const void* indexData, UINT size, EDataFormat format, bool keepData) override;
-		virtual IUploadBuffer* CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer, CBVHeapType heapType) override;
+		virtual void CreateCBVHeap(ECBVHeapType type) override;
+		virtual IUploadBuffer* CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer, ECBVHeapType heapType) override;
 		virtual PSOID CreateGraphicsPipelineState(const FPSODesc& psoDesc) override;
 		virtual IShader* CompileShader(
 			const char* filepath, FShaderMacro* macros, int numMacros, EShaderType shaderType, const char* entryFunctionName) override;
@@ -54,11 +58,20 @@ namespace fb
 		virtual int GetSampleCount() const;
 		virtual int GetMsaaQuality() const;
 
-		virtual void TestCreateRootSignatureForSimpleBox() override;
-		virtual void* TestGetRootSignatureForSimpleBox() override;
+		virtual void TempResetCommandList() override;
+		virtual void TempCloseCommandList(bool runAndFlush) override;
+		virtual void TempBindDescriptorHeap(ECBVHeapType type) override;
+		virtual void TempCreateRootSignatureForSimpleBox() override;
+		virtual fb::RootSignature TempGetRootSignatureForSimpleBox() override;
+		virtual void TempBindRootSignature(fb::RootSignature rootSig) override;
+		virtual void TempBindVertexBuffer(const IVertexBufferIntPtr& vb) override;
+		virtual void TempBindIndexBuffer(const IIndexBufferIntPtr& ib) override;
+		virtual void TempSetPrimitiveTopology(const fb::EPrimitiveTopology topology) override;
+		virtual void TempBindRootDescriptorTable(UINT slot, ECBVHeapType type) override;
+		virtual void TempDrawIndexedInstanced(UINT indexCount) override;
 
 		// Owning Functions
-		Microsoft::WRL::ComPtr<ID3D12Resource> CreateDefaultBuffer(
+		Microsoft::WRL::ComPtr<ID3D12Resource> CreateBufferInDefaultHeap(
 			const void* initData,
 			UINT64 byteSize);
 
