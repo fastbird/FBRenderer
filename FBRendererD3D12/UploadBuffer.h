@@ -18,5 +18,6 @@ namespace fb
 		~UploadBuffer();
 		virtual bool Initialize(UINT elementSize, UINT align, UINT count) override;
 		virtual void CopyData(UINT elementIndex, void* elementData) override;
+		virtual void CreateCBV(UINT elementIndex, EDescriptorHeapType heapType, UINT heapIndex) override;
 	};
 }

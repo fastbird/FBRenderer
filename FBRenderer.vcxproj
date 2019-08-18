@@ -124,8 +124,10 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="DataFormat.h" />
+    <ClInclude Include="EDescriptorHeapType.h" />
     <ClInclude Include="FBRenderer.h" />
-    <ClInclude Include="FrameResources.h" />
+    <ClInclude Include="FrameResource.h" />
+    <ClInclude Include="ICommandAllocator.h" />
     <ClInclude Include="InputElementDesc.h" />
     <ClInclude Include="IRenderer.h" />
     <ClInclude Include="IShader.h" />
@@ -135,6 +137,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="FBRenderer.cpp" />
+    <ClCompile Include="IRenderer.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

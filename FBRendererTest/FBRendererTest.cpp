@@ -20,6 +20,8 @@ glm::mat4 WorldMat(1.0f), ViewMat(1.0f), ProjMat(1.0f);
 fb::IUploadBuffer* ConstantBuffer = nullptr;
 POINT LastMousePos;
 fb::PSOID SimpleBoxPSO;
+UINT CurrentFrameResourceIndex = 0;
+
 // Global Variables:
 HINSTANCE hInst;       // current instance
 HWND WindowHandle;
@@ -109,13 +111,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 				using namespace std::chrono_literals;
 				std::this_thread::sleep_for(10ms);
 			}
+			CurrentFrameResourceIndex = (CurrentFrameResourceIndex + 1) % gRenderer->GetNumSwapchainBuffers();
 		}
 	}
 
 	delete gBoxMesh; gBoxMesh = nullptr;
 	delete ConstantBuffer; ConstantBuffer = nullptr;
-	gRenderer->Finalize(); gRenderer = nullptr;
-	
+	fb::FinalizeRenderer(gRenderer);
 
     return (int) msg.wParam;
 }
@@ -174,10 +176,9 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    UpdateWindow(WindowHandle);
 
    gRenderer = fb::InitRenderer(fb::RendererType::D3D12, (void*)WindowHandle);
-   gRenderer->CreateCBVHeap(fb::ECBVHeapType::Default);
 
    gRenderer->TempResetCommandList();
-   ConstantBuffer = gRenderer->CreateUploadBuffer(sizeof(float[16]), 1, true, fb::ECBVHeapType::Default);
+   ConstantBuffer = gRenderer->CreateUploadBuffer(sizeof(float[16]), 1, true, fb::EDescriptorHeapType::Default);
    BuildShadersAndInputLayout();
    gRenderer->TempCreateRootSignatureForSimpleBox();
    BuildPSO();
@@ -348,6 +349,7 @@ bool BuildBoxGeometry()
 	return gBoxMesh->IsValid();
 }
 
+
 void Update(float dt)
 {
 	// Convert Spherical to Cartesian coordinates.
@@ -363,7 +365,11 @@ void Update(float dt)
 	wvp = glm::transpose(wvp);
 	auto float16size = sizeof(float[16]);
 	assert(sizeof(wvp) == sizeof(float[16]));
-	ConstantBuffer->CopyData(0, &wvp);
+
+	auto& curFR = gRenderer->GetFrameResource_WaitAvailable(CurrentFrameResourceIndex);
+
+	// TODO : This should be ViewProject.
+	curFR.CBPerFrame->CopyData(0, &wvp);
 }
 void OnMouseMove(WPARAM btnState, int x, int y)
 {
@@ -449,12 +455,12 @@ void BuildPSO()
 
 void Draw()
 {
-	gRenderer->TempBindDescriptorHeap(fb::ECBVHeapType::Default);
+	gRenderer->TempBindDescriptorHeap(fb::EDescriptorHeapType::Default);
 	gRenderer->TempBindRootSignature(gRenderer->TempGetRootSignatureForSimpleBox());
 
 	gRenderer->TempBindVertexBuffer(gBoxMesh->VertexBuffer);
 	gRenderer->TempBindIndexBuffer(gBoxMesh->IndexBuffer);
 	gRenderer->TempSetPrimitiveTopology(fb::EPrimitiveTopology::TRIANGLELIST);
-	gRenderer->TempBindRootDescriptorTable(0, fb::ECBVHeapType::Default);
+	gRenderer->TempBindRootDescriptorTable(0, fb::EDescriptorHeapType::Default);
 	gRenderer->TempDrawIndexedInstanced(gBoxMesh->IndexBuffer->GetElementCount());
 }

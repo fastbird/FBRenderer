@@ -29,3 +29,9 @@ IRenderer* fb::InitRenderer(RendererType type, void* windowHandle)
 	}
 	return nullptr;
 }
+
+void fb::FinalizeRenderer(IRenderer*& renderer)
+{
+	renderer->Finalize();
+	renderer = nullptr;
+}

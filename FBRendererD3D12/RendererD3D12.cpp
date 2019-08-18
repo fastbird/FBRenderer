@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "RendererD3D12.h"
 #include "Util.h"
+#include "CommandAllocator.h"
 #include "VertexBuffer.h"
 #include "IndexBuffer.h"
 #include "UploadBuffer.h"
@@ -83,6 +84,42 @@ void RendererD3D12::Finalize()
 {
 	gRendererD3D12 = nullptr;
 	delete this;
+}
+
+void RendererD3D12::WaitFence(UINT64 fence)
+{
+	if (fence == 0)
+		return;
+	if (Fence->GetCompletedValue() < fence) {
+		HANDLE eventHandle = CreateEventEx(nullptr, false, false, EVENT_ALL_ACCESS);
+		ThrowIfFailed(Fence->SetEventOnCompletion(fence, eventHandle));
+		WaitForSingleObject(eventHandle, INFINITE);
+		CloseHandle(eventHandle);
+	}
+}
+
+int RendererD3D12::GetNumSwapchainBuffers()
+{
+	return SwapChainBufferCount;
+}
+
+void RendererD3D12::PrepareDescriptorHeap(EDescriptorHeapType heapType, UINT count)
+{
+	switch (heapType)
+	{
+	case EDescriptorHeapType::Default:
+	{
+		
+		D3D12_DESCRIPTOR_HEAP_DESC heapDesc;
+		heapDesc.NumDescriptors = count;
+		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+		heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+		heapDesc.NodeMask = 0;
+		ThrowIfFailed(Device->CreateDescriptorHeap(&heapDesc,
+			IID_PPV_ARGS(&DefaultDescriptorHeap)));
+		break;
+	}
+	}
 }
 
 void RendererD3D12::OnResized()
@@ -225,9 +262,9 @@ void RendererD3D12::Draw(float dt)
 		// *************
 		// TEST CODE
 		CommandList->SetGraphicsRootSignature(RootSignature.Get());
-		ID3D12DescriptorHeap* descriptorHeaps[] = { DefaultCbvHeap.Get() };
+		ID3D12DescriptorHeap* descriptorHeaps[] = { DefaultDescriptorHeap.Get() };
 		CommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
-		CommandList->SetGraphicsRootDescriptorTable(0, DefaultCbvHeap->GetGPUDescriptorHandleForHeapStart());
+		CommandList->SetGraphicsRootDescriptorTable(0, DefaultDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 	}
 
 	// Indicate a state transition on the resource usage.
@@ -251,6 +288,15 @@ void RendererD3D12::Draw(float dt)
 	FlushCommandQueue();
 }
 
+ICommandAllocator* RendererD3D12::CreateCommandAllocator()
+{
+	auto ca = new CommandAllocator;
+	ThrowIfFailed(Device->CreateCommandAllocator(
+		D3D12_COMMAND_LIST_TYPE_DIRECT,
+		IID_PPV_ARGS(ca->CommandAllocator.GetAddressOf())));
+	return ca;
+}
+
 IVertexBuffer* RendererD3D12::CreateVertexBuffer(const void* vertexData, UINT size, UINT stride, bool keepData)
 {
 	auto vb = new VertexBuffer();
@@ -271,27 +317,7 @@ IIndexBuffer* RendererD3D12::CreateIndexBuffer(const void* indexData, UINT size,
 	return ib;
 }
 
-void RendererD3D12::CreateCBVHeap(ECBVHeapType type)
-{
-	switch (type)
-	{
-	case ECBVHeapType::Default:
-	{
-		if (!DefaultCbvHeap) {
-			D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
-			cbvHeapDesc.NumDescriptors = 1;
-			cbvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-			cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-			cbvHeapDesc.NodeMask = 0;
-			ThrowIfFailed(Device->CreateDescriptorHeap(&cbvHeapDesc,
-				IID_PPV_ARGS(&DefaultCbvHeap)));
-		}
-	}
-	}
-
-}
-
-IUploadBuffer* RendererD3D12::CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer, ECBVHeapType heapType)
+IUploadBuffer* RendererD3D12::CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer, EDescriptorHeapType heapType)
 {
 	auto ub = new UploadBuffer();
 	if (!ub->Initialize(elementSize, constantBuffer ? 256 : 0, count))
@@ -301,7 +327,7 @@ IUploadBuffer* RendererD3D12::CreateUploadBuffer(UINT elementSize, UINT count, b
 	}
 	switch (heapType)
 	{
-	case ECBVHeapType::Default:
+	case EDescriptorHeapType::Default:
 	{
 		D3D12_GPU_VIRTUAL_ADDRESS cbAddress = ub->Resource->GetGPUVirtualAddress();
 		// Insert offsetting code if necessary.
@@ -312,7 +338,7 @@ IUploadBuffer* RendererD3D12::CreateUploadBuffer(UINT elementSize, UINT count, b
 
 		Device->CreateConstantBufferView(
 			&cbvDesc,
-			DefaultCbvHeap->GetCPUDescriptorHandleForHeapStart());
+			DefaultDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 		break;
 	}
 	}
@@ -424,13 +450,13 @@ void RendererD3D12::TempCloseCommandList(bool runAndFlush)
 	}
 }
 
-void RendererD3D12::TempBindDescriptorHeap(ECBVHeapType type)
+void RendererD3D12::TempBindDescriptorHeap(EDescriptorHeapType type)
 {
 	switch (type)
 	{
-	case ECBVHeapType::Default:
+	case EDescriptorHeapType::Default:
 	{
-		ID3D12DescriptorHeap* descriptorHeaps[] = { DefaultCbvHeap.Get() };
+		ID3D12DescriptorHeap* descriptorHeaps[] = { DefaultDescriptorHeap.Get() };
 		CommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 		break;
 	}
@@ -497,12 +523,12 @@ void RendererD3D12::TempSetPrimitiveTopology(const fb::EPrimitiveTopology topolo
 	CommandList->IASetPrimitiveTopology(Convert(topology));
 }
 
-void RendererD3D12::TempBindRootDescriptorTable(UINT slot, ECBVHeapType type)
+void RendererD3D12::TempBindRootDescriptorTable(UINT slot, EDescriptorHeapType type)
 {
 	switch (type) {
-	case ECBVHeapType::Default:
+	case EDescriptorHeapType::Default:
 	{
-		CommandList->SetGraphicsRootDescriptorTable(slot, DefaultCbvHeap->GetGPUDescriptorHandleForHeapStart());
+		CommandList->SetGraphicsRootDescriptorTable(slot, DefaultDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 		break;
 	}
 	}
@@ -600,10 +626,6 @@ void RendererD3D12::CreateCommandObjects()
 	queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 	queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
 	ThrowIfFailed(Device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&CommandQueue)));
-
-	ThrowIfFailed(Device->CreateCommandAllocator(
-		D3D12_COMMAND_LIST_TYPE_DIRECT,
-		IID_PPV_ARGS(DirectCmdAllocator.GetAddressOf())));
 
 	ThrowIfFailed(Device->CreateCommandList(
 		0,

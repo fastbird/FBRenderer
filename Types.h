@@ -1,6 +1,7 @@
 #pragma once
 namespace fb {
 	using UINT = unsigned int;
+	using UINT64 = unsigned long long;
 	using BYTE = unsigned char;
 	using BOOL = bool;
 	using UINT8 = unsigned char;
