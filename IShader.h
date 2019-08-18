@@ -27,5 +27,4 @@ namespace fb
 		virtual UINT Size() = 0;
 
 	};
-	FBDeclareIntrusivePointer2(IShader);
 }

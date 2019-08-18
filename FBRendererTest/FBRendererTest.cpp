@@ -51,8 +51,8 @@ struct MeshGeometry
 	// Give it a name so we can look it up by name.
 	std::string Name;
 
-	fb::IVertexBufferIntPtr VertexBuffer;
-	fb::IIndexBufferIntPtr IndexBuffer;
+	fb::IVertexBufferIPtr VertexBuffer;
+	fb::IIndexBufferIPtr IndexBuffer;
 
 	bool IsValid() const noexcept
 	{
@@ -407,7 +407,7 @@ void OnMouseDown(WPARAM btnState, int x, int y)
 	SetCapture(WindowHandle);
 }
 
-fb::IShaderIntPtr VS, PS;
+fb::IShaderIPtr VS, PS;
 std::vector<fb::FInputElementDesc> InputLayout;
 void BuildShadersAndInputLayout()
 {
@@ -416,7 +416,7 @@ void BuildShadersAndInputLayout()
 
 	InputLayout = {
 		{ "POSITION", 0, fb::EDataFormat::R32G32B32_FLOAT, 0, 0, fb::EInputClassification::PerVertexData, 0 },
-		{ "COLOR", 0, fb::EDataFormat::R32G32B32A32_FLOAT, 0, 12, fb::EInputClassification::PerVertexData, 0 }
+		{ "COLOR", 0, fb::EDataFormat::R32G32B32A32_FLOAT, 0, 12, fb::EInputClassification::PerVertexData, 0 },
 	};
 }
 

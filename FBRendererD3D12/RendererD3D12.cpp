@@ -478,14 +478,14 @@ void RendererD3D12::TempBindRootSignature(fb::RootSignature rootSig)
 	CommandList->SetGraphicsRootSignature((ID3D12RootSignature*)rootSig);
 }
 
-void RendererD3D12::TempBindVertexBuffer(const IVertexBufferIntPtr& vb)
+void RendererD3D12::TempBindVertexBuffer(const IVertexBufferIPtr& vb)
 {
 	auto d3dVB = (VertexBuffer*)vb.get();
 	D3D12_VERTEX_BUFFER_VIEW views[] = { d3dVB->VertexBufferView() };
 	CommandList->IASetVertexBuffers(0, 1, views);
 }
 
-void RendererD3D12::TempBindIndexBuffer(const IIndexBufferIntPtr& ib)
+void RendererD3D12::TempBindIndexBuffer(const IIndexBufferIPtr& ib)
 {
 	auto d3dIB = (IndexBuffer*)ib.get();
 	auto view = d3dIB->IndexBufferView();

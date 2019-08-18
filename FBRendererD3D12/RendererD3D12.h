@@ -66,8 +66,8 @@ namespace fb
 		virtual void TempCreateRootSignatureForSimpleBox() override;
 		virtual fb::RootSignature TempGetRootSignatureForSimpleBox() override;
 		virtual void TempBindRootSignature(fb::RootSignature rootSig) override;
-		virtual void TempBindVertexBuffer(const IVertexBufferIntPtr& vb) override;
-		virtual void TempBindIndexBuffer(const IIndexBufferIntPtr& ib) override;
+		virtual void TempBindVertexBuffer(const IVertexBufferIPtr& vb) override;
+		virtual void TempBindIndexBuffer(const IIndexBufferIPtr& ib) override;
 		virtual void TempSetPrimitiveTopology(const fb::EPrimitiveTopology topology) override;
 		virtual void TempBindRootDescriptorTable(UINT slot, ECBVHeapType type) override;
 		virtual void TempDrawIndexedInstanced(UINT indexCount) override;

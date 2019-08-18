@@ -125,6 +125,7 @@
   <ItemGroup>
     <ClInclude Include="DataFormat.h" />
     <ClInclude Include="FBRenderer.h" />
+    <ClInclude Include="FrameResources.h" />
     <ClInclude Include="InputElementDesc.h" />
     <ClInclude Include="IRenderer.h" />
     <ClInclude Include="IShader.h" />
