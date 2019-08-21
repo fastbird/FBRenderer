@@ -69,7 +69,18 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <IncludePath>$(ThirdPartiesDir)\glm;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <IncludePath>$(ThirdPartiesDir)\glm;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <IncludePath>$(ThirdPartiesDir)\glm;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <IncludePath>$(ThirdPartiesDir)\glm;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -128,11 +139,14 @@
     <ClInclude Include="FBRenderer.h" />
     <ClInclude Include="FrameResource.h" />
     <ClInclude Include="ICommandAllocator.h" />
+    <ClInclude Include="IIndexBuffer.h" />
     <ClInclude Include="InputElementDesc.h" />
     <ClInclude Include="IRenderer.h" />
     <ClInclude Include="IShader.h" />
+    <ClInclude Include="IVertexBuffer.h" />
     <ClInclude Include="PrimitiveTopology.h" />
     <ClInclude Include="PSO.h" />
+    <ClInclude Include="RenderItem.h" />
     <ClInclude Include="Types.h" />
   </ItemGroup>
   <ItemGroup>

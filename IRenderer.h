@@ -8,33 +8,14 @@
 #include "PSO.h"
 #include "FrameResource.h"
 #include "EDescriptorHeapType.h"
+#include "IVertexBuffer.h"
+#include "IIndexBuffer.h"
 #include <functional>
 namespace fb
 {
 	enum class RendererType {
 		D3D12
-	};
-
-	FBDeclareIntrusivePointer(IVertexBuffer);
-	class IVertexBuffer : public IRefCounted
-	{
-	public:
-		virtual ~IVertexBuffer() {}
-		virtual bool Initialize(const void* vertexData, UINT size, UINT stride, bool keepData) = 0;
-		virtual UINT GetSize() const = 0;
-		virtual UINT GetStride() const = 0;
-	};
-
-	FBDeclareIntrusivePointer(IIndexBuffer);
-	class IIndexBuffer : public IRefCounted
-	{
-	public:
-		virtual ~IIndexBuffer() {}
-		virtual bool Initialize(const void* indexData, UINT size, EDataFormat format, bool keepData) = 0;
-		virtual UINT GetSize() const = 0;
-		virtual EDataFormat GetFormat() const = 0;
-		virtual UINT GetElementCount() const = 0;
-	};
+	};	
 
 	using DrawCallbackFunc = void (*)();
 	class IRenderer

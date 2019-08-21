@@ -28,5 +28,4 @@ FFrameResource& IRenderer::GetFrameResource_WaitAvailable(UINT index)
 	auto& fr = FrameResources[index];
 	WaitFence(fr.Fence);
 	return fr;
-	
 }
