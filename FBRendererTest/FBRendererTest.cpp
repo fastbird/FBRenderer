@@ -32,6 +32,7 @@ std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> Geometries;
 std::vector<std::unique_ptr<fb::RenderItem>> AllRitems;
 std::vector<fb::RenderItem*> OpaqueRitems;
 UINT PassCbvOffset = 0;
+std::unordered_map<std::string, fb::IShaderIPtr> Shaders;
 
 // Global Variables:
 HINSTANCE hInst;       // current instance
@@ -45,11 +46,15 @@ BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 bool				BuildBoxGeometry();
-void Update(float dt);
+void				Update(float dt);
+
 void OnMouseMove(WPARAM btnState, int x, int y);
 void OnMouseDown(WPARAM btnState, int x, int y);
+
 void BuildShadersAndInputLayout();
+
 void BuildPSO();
+
 void BuildShapeGeometry();
 void BuildRenderItems();
 void BuildDescriptorHeap();
@@ -233,6 +238,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    gRenderer->TempResetCommandList();
 
+   BuildShapeGeometry();
+
    BuildRenderItems();
 
    BuildDescriptorHeap();
@@ -241,7 +248,9 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    BuildShadersAndInputLayout();
    gRenderer->TempCreateRootSignatureForSimpleBox();
+
    BuildPSO();
+
    gRenderer->RegisterDrawCallback(Draw);
    BuildBoxGeometry();
    gRenderer->TempCloseCommandList(true);
@@ -477,8 +486,8 @@ fb::IShaderIPtr VS, PS;
 std::vector<fb::FInputElementDesc> InputLayout;
 void BuildShadersAndInputLayout()
 {
-	VS = gRenderer->CompileShader("Shaders/SimpleShader.hlsl", nullptr, 0, fb::EShaderType::VertexShader, "VS");
-	PS = gRenderer->CompileShader("Shaders/SimpleShader.hlsl", nullptr, 0, fb::EShaderType::PixelShader, "PS");
+	Shaders["standardVS"] = gRenderer->CompileShader("Shaders/SimpleShader.hlsl", nullptr, 0, fb::EShaderType::VertexShader, "VS");
+	Shaders["opaquePS"] = gRenderer->CompileShader("Shaders/SimpleShader.hlsl", nullptr, 0, fb::EShaderType::PixelShader, "PS");
 
 	InputLayout = {
 		{ "POSITION", 0, fb::EDataFormat::R32G32B32_FLOAT, 0, 0, fb::EInputClassification::PerVertexData, 0 },
@@ -511,6 +520,45 @@ void BuildPSO()
 	psoDesc.SampleDesc.Quality = gRenderer->GetMsaaQuality();
 	psoDesc.DSVFormat = gRenderer->GetDepthStencilFormat();
 	SimpleBoxPSO = gRenderer->CreateGraphicsPipelineState(psoDesc);
+}
+
+void BuildRootSignature()
+{
+	gRenderer->CreateRootSignature("CBVTable,1,0;CBVTable,1,1;");
+	// Two Descriptor tables
+	CD3DX12_DESCRIPTOR_RANGE cbvTable0;
+	cbvTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
+	CD3DX12_DESCRIPTOR_RANGE cbvTable1;
+	cbvTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1);
+
+	// Root parameter can be a table, root descriptor or root constants.
+	CD3DX12_ROOT_PARAMETER slotRootParameter[2];
+
+	// Create root CBVs.
+	slotRootParameter[0].InitAsDescriptorTable(1, &cbvTable0);
+	slotRootParameter[1].InitAsDescriptorTable(1, &cbvTable1);
+
+	// A root signature is an array of root parameters.
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(2, slotRootParameter, 0, nullptr,
+		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+
+	// create a root signature with a single slot which points to a descriptor range consisting of a single constant buffer
+	ComPtr<ID3DBlob> serializedRootSig = nullptr;
+	ComPtr<ID3DBlob> errorBlob = nullptr;
+	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+		serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
+
+	if (errorBlob != nullptr)
+	{
+		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+	}
+	ThrowIfFailed(hr);
+
+	ThrowIfFailed(md3dDevice->CreateRootSignature(
+		0,
+		serializedRootSig->GetBufferPointer(),
+		serializedRootSig->GetBufferSize(),
+		IID_PPV_ARGS(mRootSignature.GetAddressOf())));
 }
 
 void BuildShapeGeometry()
@@ -740,6 +788,20 @@ void BuildDescriptorHeap()
 
 void BuildConstantBuffers()
 {
+	UINT objCount = (UINT)OpaqueRitems.size();
+	auto numSwapchains = gRenderer->GetNumSwapchainBuffers();
+	// Need a CBV descriptor for each object for each frame resource.
+	for (int frameIndex = 0; frameIndex < numSwapchains; ++frameIndex)
+	{
+		auto& frameResource = gRenderer->GetFrameResource_WaitAvailable(frameIndex);
+		frameResource.CBPerObject = gRenderer->CreateUploadBuffer(sizeof(ObjectConstants), objCount, true, fb::EDescriptorHeapType::Default);
+		for (UINT i = 0; i < objCount; ++i)
+		{
+			int heapIndex = frameIndex * objCount + i;
+			frameResource.CBPerObject->CreateCBV(i, fb::EDescriptorHeapType::Default, heapIndex);
+		}
+	}
+
 	auto numFrameResources = gRenderer->GetNumSwapchainBuffers();
 	for (int frameIndex = 0; frameIndex < numFrameResources; ++frameIndex)
 	{

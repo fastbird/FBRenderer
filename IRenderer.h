@@ -10,6 +10,7 @@
 #include "EDescriptorHeapType.h"
 #include "IVertexBuffer.h"
 #include "IIndexBuffer.h"
+#include "IRootSignature.h"
 #include <functional>
 namespace fb
 {
@@ -50,6 +51,7 @@ namespace fb
 		virtual IShader* CompileShader(const char* filepath, FShaderMacro* macros, int numMacros, EShaderType shaderType, const char* entryFunctionName) = 0;
 		virtual EDataFormat GetBackBufferFormat() const = 0;
 		virtual EDataFormat GetDepthStencilFormat() const = 0;
+		virtual IRootSignature* CreateRootSignature(const char* definition) = 0;
 		virtual int GetSampleCount() const = 0;
 		virtual int GetMsaaQuality() const = 0;
 		virtual int GetBackbufferWidth() const = 0;

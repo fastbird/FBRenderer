@@ -7,6 +7,8 @@
 #include "UploadBuffer.h"
 #include "Shader.h"
 #include "ConverterD3D12.h"
+#include "RootSignature.h"
+#include "../../FBCommon/StringHeader.h"
 
 using namespace fb;
 using Microsoft::WRL::ComPtr;
@@ -397,6 +399,12 @@ EDataFormat RendererD3D12::GetDepthStencilFormat() const
 	return Convert(DepthStencilFormat);
 }
 
+IRootSignature* RendererD3D12::CreateRootSignature(const char* definition)
+{	
+	definition
+
+}
+
 int RendererD3D12::GetSampleCount() const
 {
 	return Msaa4xState ? 4 : 1;
@@ -610,6 +618,10 @@ void RendererD3D12::CreateCommandObjects()
 	queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 	queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
 	ThrowIfFailed(Device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&CommandQueue)));
+
+	ThrowIfFailed(Device->CreateCommandAllocator(
+		D3D12_COMMAND_LIST_TYPE_DIRECT,
+		IID_PPV_ARGS(DirectCmdAllocator.GetAddressOf())));
 
 	ThrowIfFailed(Device->CreateCommandList(
 		0,

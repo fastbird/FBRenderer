@@ -280,7 +280,6 @@ namespace fb {
 		UINT BytecodeLength = 0;
 	};
 
-	using RootSignature = void*;
 	struct FPSODesc
 	{
 		RootSignature pRootSignature = nullptr;

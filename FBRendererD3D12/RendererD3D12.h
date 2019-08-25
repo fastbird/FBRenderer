@@ -59,6 +59,7 @@ namespace fb
 			const char* filepath, FShaderMacro* macros, int numMacros, EShaderType shaderType, const char* entryFunctionName) override;
 		virtual EDataFormat GetBackBufferFormat() const override;
 		virtual EDataFormat GetDepthStencilFormat() const override;
+		virtual IRootSignature* CreateRootSignature(const char* definition) override;
 		virtual int GetSampleCount() const override;
 		virtual int GetMsaaQuality() const override;
 		virtual int GetBackbufferWidth() const override;
