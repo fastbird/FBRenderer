@@ -3,11 +3,17 @@
 
 #include "framework.h"
 #include "FBRendererTest.h"
+#include "GeometryGenerator.h"
 #include "../FBRenderer.h"
+#include "../RenderItem.h"
+#include "../Colors.h"
 #include "../../FBCommon/glm.h"
+#include "../../FBCommon/AABB.h"
+
 #include <chrono>
 #include <thread>
 #include <array>
+#include <unordered_map>
 
 #define MAX_LOADSTRING 100
 
@@ -17,10 +23,15 @@ float Radius = 5.0f;
 float Phi = glm::four_over_pi<float>();
 float Theta = 1.5f * glm::pi<float>();
 glm::mat4 WorldMat(1.0f), ViewMat(1.0f), ProjMat(1.0f);
-fb::IUploadBuffer* ConstantBuffer = nullptr;
+fb::IUploadBuffer* PerPassCBs = nullptr;
+std::vector<fb::IUploadBuffer*> PerObjectCBs;
 POINT LastMousePos;
 fb::PSOID SimpleBoxPSO;
 UINT CurrentFrameResourceIndex = 0;
+std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> Geometries;
+std::vector<std::unique_ptr<fb::RenderItem>> AllRitems;
+std::vector<fb::RenderItem*> OpaqueRitems;
+UINT PassCbvOffset = 0;
 
 // Global Variables:
 HINSTANCE hInst;       // current instance
@@ -39,6 +50,10 @@ void OnMouseMove(WPARAM btnState, int x, int y);
 void OnMouseDown(WPARAM btnState, int x, int y);
 void BuildShadersAndInputLayout();
 void BuildPSO();
+void BuildShapeGeometry();
+void BuildRenderItems();
+void BuildDescriptorHeap();
+void BuildConstantBuffers();
 void Draw();
 
 
@@ -46,6 +61,16 @@ struct Vertex
 {
 	float X, Y, Z;
 	float R, G, B, A;
+};
+
+struct SubmeshGeometry
+{
+	UINT IndexCount = 0;
+	UINT StartIndexLocation = 0;
+	INT BaseVertexLocation = 0;
+	// Bounding box of the geometry defined by this submesh. 
+	// This is used in later chapters of the book.
+	fb::AABB Bounds;
 };
 
 struct MeshGeometry
@@ -56,11 +81,40 @@ struct MeshGeometry
 	fb::IVertexBufferIPtr VertexBuffer;
 	fb::IIndexBufferIPtr IndexBuffer;
 
+	// A MeshGeometry may store multiple geometries in one vertex/index buffer.
+	// Use this container to define the Submesh geometries so we can draw
+	// the Submeshes individually.
+	std::unordered_map<std::string, SubmeshGeometry> DrawArgs;
+
 	bool IsValid() const noexcept
 	{
 		return VertexBuffer != nullptr;
 	}
 };
+
+struct ObjectConstants
+{
+	glm::mat4 World = glm::mat4(1.0f);
+};
+
+struct PassConstants
+{
+	glm::mat4 View = glm::mat4(1.0f);
+	glm::mat4 InvView = glm::mat4(1.0f);
+	glm::mat4 Proj = glm::mat4(1.0f);
+	glm::mat4 InvProj = glm::mat4(1.0f);
+	glm::mat4 ViewProj = glm::mat4(1.0f);
+	glm::mat4 InvViewProj = glm::mat4(1.0f);
+	glm::vec3 EyePosW = { 0.0f, 0.0f, 0.0f };
+	float cbPerObjectPad1 = 0.0f;
+	glm::vec2 RenderTargetSize = { 0.0f, 0.0f };
+	glm::vec2 InvRenderTargetSize = { 0.0f, 0.0f };
+	float NearZ = 0.0f;
+	float FarZ = 0.0f;
+	float TotalTime = 0.0f;
+	float DeltaTime = 0.0f;
+};
+
 
 void Test()
 {
@@ -116,7 +170,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	}
 
 	delete gBoxMesh; gBoxMesh = nullptr;
-	delete ConstantBuffer; ConstantBuffer = nullptr;
+	delete PerPassCBs; PerPassCBs = nullptr;
 	fb::FinalizeRenderer(gRenderer);
 
     return (int) msg.wParam;
@@ -178,7 +232,13 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    gRenderer = fb::InitRenderer(fb::RendererType::D3D12, (void*)WindowHandle);
 
    gRenderer->TempResetCommandList();
-   ConstantBuffer = gRenderer->CreateUploadBuffer(sizeof(float[16]), 1, true, fb::EDescriptorHeapType::Default);
+
+   BuildRenderItems();
+
+   BuildDescriptorHeap();
+
+   BuildConstantBuffers();
+
    BuildShadersAndInputLayout();
    gRenderer->TempCreateRootSignatureForSimpleBox();
    BuildPSO();
@@ -444,13 +504,249 @@ void BuildPSO()
 	//psoDesc.RasterizerState
 	//psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 	//psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-	psoDesc.PrimitiveTopologyType = fb::EPrimitiveTopologyType::TRIANGLE;;
+	psoDesc.PrimitiveTopologyType = fb::EPrimitiveTopologyType::TRIANGLE;
 	psoDesc.NumRenderTargets = 1;
 	psoDesc.RTVFormats[0] = gRenderer->GetBackBufferFormat();
 	psoDesc.SampleDesc.Count = gRenderer->GetSampleCount();
 	psoDesc.SampleDesc.Quality = gRenderer->GetMsaaQuality();
 	psoDesc.DSVFormat = gRenderer->GetDepthStencilFormat();
 	SimpleBoxPSO = gRenderer->CreateGraphicsPipelineState(psoDesc);
+}
+
+void BuildShapeGeometry()
+{
+	GeometryGenerator geoGen;
+	GeometryGenerator::MeshData box = geoGen.CreateBox(1.5f, 0.5f, 1.5f, 3);
+	GeometryGenerator::MeshData grid = geoGen.CreateGrid(20.0f, 30.0f, 60, 40);
+	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
+	GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(0.5f, 0.3f, 3.0f, 20, 20);
+
+	//
+	// We are concatenating all the geometry into one big vertex/index buffer.  So
+	// define the regions in the buffer each submesh covers.
+	//
+
+	// Cache the vertex offsets to each object in the concatenated vertex buffer.
+	UINT boxVertexOffset = 0;
+	UINT gridVertexOffset = (UINT)box.Vertices.size();
+	UINT sphereVertexOffset = gridVertexOffset + (UINT)grid.Vertices.size();
+	UINT cylinderVertexOffset = sphereVertexOffset + (UINT)sphere.Vertices.size();
+
+	// Cache the starting index for each object in the concatenated index buffer.
+	UINT boxIndexOffset = 0;
+	UINT gridIndexOffset = (UINT)box.Indices32.size();
+	UINT sphereIndexOffset = gridIndexOffset + (UINT)grid.Indices32.size();
+	UINT cylinderIndexOffset = sphereIndexOffset + (UINT)sphere.Indices32.size();
+
+	// Define the SubmeshGeometry that cover different 
+	// regions of the vertex/index buffers.
+
+	SubmeshGeometry boxSubmesh;
+	boxSubmesh.IndexCount = (UINT)box.Indices32.size();
+	boxSubmesh.StartIndexLocation = boxIndexOffset;
+	boxSubmesh.BaseVertexLocation = boxVertexOffset;
+
+	SubmeshGeometry gridSubmesh;
+	gridSubmesh.IndexCount = (UINT)grid.Indices32.size();
+	gridSubmesh.StartIndexLocation = gridIndexOffset;
+	gridSubmesh.BaseVertexLocation = gridVertexOffset;
+
+	SubmeshGeometry sphereSubmesh;
+	sphereSubmesh.IndexCount = (UINT)sphere.Indices32.size();
+	sphereSubmesh.StartIndexLocation = sphereIndexOffset;
+	sphereSubmesh.BaseVertexLocation = sphereVertexOffset;
+
+	SubmeshGeometry cylinderSubmesh;
+	cylinderSubmesh.IndexCount = (UINT)cylinder.Indices32.size();
+	cylinderSubmesh.StartIndexLocation = cylinderIndexOffset;
+	cylinderSubmesh.BaseVertexLocation = cylinderVertexOffset;
+
+	//
+	// Extract the vertex elements we are interested in and pack the
+	// vertices of all the meshes into one vertex buffer.
+	//
+
+	auto totalVertexCount =
+		box.Vertices.size() +
+		grid.Vertices.size() +
+		sphere.Vertices.size() +
+		cylinder.Vertices.size();
+
+	std::vector<Vertex> vertices(totalVertexCount);
+
+	UINT k = 0;
+	for (size_t i = 0; i < box.Vertices.size(); ++i, ++k)
+	{
+		vertices[k].X = box.Vertices[i].Position.x;
+		vertices[k].Y = box.Vertices[i].Position.y;
+		vertices[k].Z = box.Vertices[i].Position.z;
+		vertices[k].R = fb::Colors::DarkGreen[0];
+		vertices[k].G = fb::Colors::DarkGreen[1];
+		vertices[k].B = fb::Colors::DarkGreen[2];
+		vertices[k].A = fb::Colors::DarkGreen[3];
+	}
+
+	for (size_t i = 0; i < grid.Vertices.size(); ++i, ++k)
+	{
+		vertices[k].X = grid.Vertices[i].Position.x;
+		vertices[k].Y = grid.Vertices[i].Position.y;
+		vertices[k].Z = grid.Vertices[i].Position.z;
+		vertices[k].R = fb::Colors::ForestGreen[0];
+		vertices[k].G = fb::Colors::ForestGreen[1];
+		vertices[k].B = fb::Colors::ForestGreen[2];
+		vertices[k].A = fb::Colors::ForestGreen[3];
+	}
+
+	for (size_t i = 0; i < sphere.Vertices.size(); ++i, ++k)
+	{
+		vertices[k].X = sphere.Vertices[i].Position.x;
+		vertices[k].Y = sphere.Vertices[i].Position.y;
+		vertices[k].Z = sphere.Vertices[i].Position.z;
+		vertices[k].R = fb::Colors::Crimson[0];
+		vertices[k].G = fb::Colors::Crimson[1];
+		vertices[k].B = fb::Colors::Crimson[2];
+		vertices[k].A = fb::Colors::Crimson[3];
+	}
+
+	for (size_t i = 0; i < cylinder.Vertices.size(); ++i, ++k)
+	{
+		vertices[k].X = cylinder.Vertices[i].Position.x;
+		vertices[k].Y = cylinder.Vertices[i].Position.y;
+		vertices[k].Z = cylinder.Vertices[i].Position.z;
+
+		vertices[k].R = fb::Colors::SteelBlue[0];
+		vertices[k].G = fb::Colors::SteelBlue[1];
+		vertices[k].B = fb::Colors::SteelBlue[2];
+		vertices[k].A = fb::Colors::SteelBlue[3];
+	}
+
+	std::vector<std::uint16_t> indices;
+	indices.insert(indices.end(), std::begin(box.GetIndices16()), std::end(box.GetIndices16()));
+	indices.insert(indices.end(), std::begin(grid.GetIndices16()), std::end(grid.GetIndices16()));
+	indices.insert(indices.end(), std::begin(sphere.GetIndices16()), std::end(sphere.GetIndices16()));
+	indices.insert(indices.end(), std::begin(cylinder.GetIndices16()), std::end(cylinder.GetIndices16()));
+
+	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+	auto geo = std::make_unique<MeshGeometry>();
+	geo->Name = "shapeGeo";
+
+	geo->VertexBuffer = gRenderer->CreateVertexBuffer(vertices.data(), vbByteSize, sizeof(Vertex), false);
+	assert(geo->VertexBuffer);
+
+	geo->IndexBuffer = gRenderer->CreateIndexBuffer(indices.data(), ibByteSize, fb::EDataFormat::R16_UINT, false);
+
+	geo->DrawArgs["box"] = boxSubmesh;
+	geo->DrawArgs["grid"] = gridSubmesh;
+	geo->DrawArgs["sphere"] = sphereSubmesh;
+	geo->DrawArgs["cylinder"] = cylinderSubmesh;
+
+	Geometries[geo->Name] = std::move(geo);
+}
+
+void BuildRenderItems()
+{
+	auto boxRitem = std::make_unique<fb::RenderItem>();
+	boxRitem->World = glm::translate(glm::vec3{0.0f, 0.5f, 0.0f}) * glm::scale(glm::vec3{ 2.0f, 2.0f, 2.0f });
+	boxRitem->ConstantBufferIndex = 0;
+	auto& geo = Geometries["shapeGeo"];
+	boxRitem->VB = geo->VertexBuffer;
+	boxRitem->IB = geo->IndexBuffer;
+	boxRitem->PrimitiveTopology = fb::EPrimitiveTopology::TRIANGLELIST;
+	boxRitem->IndexCount = geo->DrawArgs["box"].IndexCount;
+	boxRitem->StartIndexLocation = geo->DrawArgs["box"].StartIndexLocation;
+	boxRitem->BaseVertexLocation = geo->DrawArgs["box"].BaseVertexLocation;
+	AllRitems.push_back(std::move(boxRitem));
+
+	auto gridRitem = std::make_unique<fb::RenderItem>();
+	gridRitem->World = glm::mat4(1.f);
+	gridRitem->ConstantBufferIndex = 1;
+	gridRitem->VB = geo->VertexBuffer;
+	gridRitem->IB = geo->IndexBuffer;
+	gridRitem->PrimitiveTopology = fb::EPrimitiveTopology::TRIANGLELIST;
+	gridRitem->IndexCount = geo->DrawArgs["grid"].IndexCount;
+	gridRitem->StartIndexLocation = geo->DrawArgs["grid"].StartIndexLocation;
+	gridRitem->BaseVertexLocation = geo->DrawArgs["grid"].BaseVertexLocation;
+	AllRitems.push_back(std::move(gridRitem));
+
+	UINT objCBIndex = 2;
+	for (int i = 0; i < 5; ++i)
+	{
+		auto leftCylRitem = std::make_unique<fb::RenderItem>();
+		auto rightCylRitem = std::make_unique<fb::RenderItem>();
+		auto leftSphereRitem = std::make_unique<fb::RenderItem>();
+		auto rightSphereRitem = std::make_unique<fb::RenderItem>();
+
+		glm::mat4 leftCylWorld = glm::translate(glm::vec3(-5.0f, 1.5f, -10.0f + i * 5.0f));
+		glm::mat4 rightCylWorld = glm::translate(glm::vec3(+5.0f, 1.5f, -10.0f + i * 5.0f));
+
+		glm::mat4 leftSphereWorld = glm::translate(glm::vec3(-5.0f, 3.5f, -10.0f + i * 5.0f));
+		glm::mat4 rightSphereWorld = glm::translate(glm::vec3(+5.0f, 3.5f, -10.0f + i * 5.0f));
+
+		leftCylRitem->World = leftCylWorld;
+		leftCylRitem->ConstantBufferIndex = objCBIndex++;
+		leftCylRitem->PrimitiveTopology = fb::EPrimitiveTopology::TRIANGLELIST;
+		leftCylRitem->IndexCount = geo->DrawArgs["cylinder"].IndexCount;
+		leftCylRitem->StartIndexLocation = geo->DrawArgs["cylinder"].StartIndexLocation;
+		leftCylRitem->BaseVertexLocation = geo->DrawArgs["cylinder"].BaseVertexLocation;
+
+		rightCylRitem->World = rightCylWorld;
+		rightCylRitem->ConstantBufferIndex = objCBIndex++;
+		rightCylRitem->PrimitiveTopology = fb::EPrimitiveTopology::TRIANGLELIST;
+		rightCylRitem->IndexCount = geo->DrawArgs["cylinder"].IndexCount;
+		rightCylRitem->StartIndexLocation = geo->DrawArgs["cylinder"].StartIndexLocation;
+		rightCylRitem->BaseVertexLocation = geo->DrawArgs["cylinder"].BaseVertexLocation;
+
+		leftSphereRitem->World = leftSphereWorld;
+		leftSphereRitem->ConstantBufferIndex = objCBIndex++;
+		leftSphereRitem->PrimitiveTopology = fb::EPrimitiveTopology::TRIANGLELIST;
+		leftSphereRitem->IndexCount = geo->DrawArgs["sphere"].IndexCount;
+		leftSphereRitem->StartIndexLocation = geo->DrawArgs["sphere"].StartIndexLocation;
+		leftSphereRitem->BaseVertexLocation = geo->DrawArgs["sphere"].BaseVertexLocation;
+
+		rightSphereRitem->World = rightSphereWorld;
+		rightSphereRitem->ConstantBufferIndex = objCBIndex++;
+		rightSphereRitem->PrimitiveTopology = fb::EPrimitiveTopology::TRIANGLELIST;
+		rightSphereRitem->IndexCount = geo->DrawArgs["sphere"].IndexCount;
+		rightSphereRitem->StartIndexLocation = geo->DrawArgs["sphere"].StartIndexLocation;
+		rightSphereRitem->BaseVertexLocation = geo->DrawArgs["sphere"].BaseVertexLocation;
+
+		AllRitems.push_back(std::move(leftCylRitem));
+		AllRitems.push_back(std::move(rightCylRitem));
+		AllRitems.push_back(std::move(leftSphereRitem));
+		AllRitems.push_back(std::move(rightSphereRitem));
+	}
+
+	// All the render items are opaque.
+	for (auto& e : AllRitems)
+		OpaqueRitems.push_back(e.get());
+}
+
+void BuildDescriptorHeap()
+{
+	UINT objCount = (UINT)OpaqueRitems.size();
+
+	auto numFrameResources = gRenderer->GetNumSwapchainBuffers();
+	// Need a CBV descriptor for each object for each frame resource,
+	// +1 for the perPass CBV for each frame resource.
+	UINT numDescriptors = (objCount + 1) * numFrameResources;
+
+	// Save an offset to the start of the pass CBVs.  These are the last 3 descriptors.
+	PassCbvOffset = objCount * numFrameResources;
+
+	gRenderer->PrepareDescriptorHeap(fb::EDescriptorHeapType::Default, numDescriptors);
+}
+
+void BuildConstantBuffers()
+{
+	auto numFrameResources = gRenderer->GetNumSwapchainBuffers();
+	for (int frameIndex = 0; frameIndex < numFrameResources; ++frameIndex)
+	{
+		auto& curFR = gRenderer->GetFrameResource_WaitAvailable(CurrentFrameResourceIndex);
+		curFR.CBPerFrame = gRenderer->CreateUploadBuffer(sizeof(PassConstants), 1, true, fb::EDescriptorHeapType::Default);
+		curFR.CBPerFrame->CreateCBV(0, fb::EDescriptorHeapType::Default, PassCbvOffset + frameIndex);
+	}
 }
 
 void Draw()

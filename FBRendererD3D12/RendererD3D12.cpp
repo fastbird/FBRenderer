@@ -325,23 +325,7 @@ IUploadBuffer* RendererD3D12::CreateUploadBuffer(UINT elementSize, UINT count, b
 		delete ub;
 		return nullptr;
 	}
-	switch (heapType)
-	{
-	case EDescriptorHeapType::Default:
-	{
-		D3D12_GPU_VIRTUAL_ADDRESS cbAddress = ub->Resource->GetGPUVirtualAddress();
-		// Insert offsetting code if necessary.
 
-		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
-		cbvDesc.BufferLocation = cbAddress;
-		cbvDesc.SizeInBytes = ub->ElementSize;
-
-		Device->CreateConstantBufferView(
-			&cbvDesc,
-			DefaultDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
-		break;
-	}
-	}
 	return ub;
 }
 

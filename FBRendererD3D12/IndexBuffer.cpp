@@ -20,6 +20,11 @@ bool IndexBuffer::Initialize(const void* indexData, UINT size, EDataFormat forma
 		assert((float)ElementCount == size / 4.0f);
 		break;
 	}
+	default:
+	{
+		assert(0 && "Only R16_UINT and R32_UINT are allowed.");
+		return false;
+	}
 	}
 	return GPUBuffer::Initialize(indexData, size, keepData);
 }

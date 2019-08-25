@@ -26,14 +26,15 @@ namespace fb
 		friend void FinalizeRenderer(IRenderer*& renderer);
 		virtual bool Initialize(void* windowHandle) = 0;
 		virtual void Finalize() = 0;
-		virtual void PrepareDescriptorHeap(EDescriptorHeapType heapType, UINT count) = 0;
-
+		void BuildFrameResources();
 
 	public:
-
-		void BuildFrameResources(UINT perFrameCBSize, UINT perObjectCBSize, UINT numObjects);
+		
+		
 		FFrameResource& GetFrameResource(UINT index) { return FrameResources[index]; }
 		FFrameResource& GetFrameResource_WaitAvailable(UINT index);
+
+		virtual void PrepareDescriptorHeap(EDescriptorHeapType heapType, UINT count) = 0;
 		virtual void WaitFence(UINT64 fence) = 0;
 
 		virtual int GetNumSwapchainBuffers() = 0;
@@ -65,5 +66,7 @@ namespace fb
 		virtual void TempSetPrimitiveTopology(const fb::EPrimitiveTopology topology) = 0;
 		virtual void TempBindRootDescriptorTable(UINT slot, EDescriptorHeapType type) = 0;
 		virtual void TempDrawIndexedInstanced(UINT indexCount) = 0;
+
+		UINT CalcConstantBufferByteSize(UINT beforeAligned) const;
 	};
 }
