@@ -27,6 +27,7 @@ fb::IUploadBuffer* PerPassCBs = nullptr;
 std::vector<fb::IUploadBuffer*> PerObjectCBs;
 POINT LastMousePos;
 fb::PSOID SimpleBoxPSO;
+fb::PSOID SimpleBoxPSOWireframe;
 UINT CurrentFrameResourceIndex = 0;
 std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> Geometries;
 std::vector<std::unique_ptr<fb::RenderItem>> AllRitems;
@@ -503,13 +504,13 @@ void BuildPSO()
 	psoDesc.pRootSignature = SimpleBoxRootSig;
 	psoDesc.VS =
 	{
-		reinterpret_cast<BYTE*>(VS->GetByteCode()),
-		VS->Size()
+		reinterpret_cast<BYTE*>(Shaders["standardVS"]->GetByteCode()),
+		Shaders["standardVS"]->Size()
 	};
 	psoDesc.PS =
 	{
-		reinterpret_cast<BYTE*>(PS->GetByteCode()),
-		PS->Size()
+		reinterpret_cast<BYTE*>(Shaders["opaquePS"]->GetByteCode()),
+		Shaders["opaquePS"]->Size()
 	};
 	//psoDesc.RasterizerState
 	//psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
@@ -521,6 +522,8 @@ void BuildPSO()
 	psoDesc.SampleDesc.Quality = gRenderer->GetMsaaQuality();
 	psoDesc.DSVFormat = gRenderer->GetDepthStencilFormat();
 	SimpleBoxPSO = gRenderer->CreateGraphicsPipelineState(psoDesc);
+	psoDesc.RasterizerState.FillMode = fb::EFillMode::WIREFRAME;
+	SimpleBoxPSOWireframe = gRenderer->CreateGraphicsPipelineState(psoDesc);
 }
 
 void BuildRootSignature()

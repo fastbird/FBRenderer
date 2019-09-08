@@ -84,6 +84,7 @@ bool RendererD3D12::Initialize(void* windowHandle)
 
 void RendererD3D12::Finalize()
 {
+	PSOs.clear();
 	gRendererD3D12 = nullptr;
 	delete this;
 }
@@ -335,9 +336,14 @@ PSOID RendererD3D12::CreateGraphicsPipelineState(const FPSODesc& psoDesc)
 {
 	ComPtr<ID3D12PipelineState> pso;
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = Convert(psoDesc);
-	ThrowIfFailed(Device->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&pso)));
+	ThrowIfFailed(Device->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(pso.GetAddressOf())));
 	PSOs.insert(std::make_pair(NextPSOId, pso));
 	return NextPSOId++;
+}
+
+void RendererD3D12::DestroyGraphicsPipelineState(PSOID psoid)
+{
+	PSOs.erase(psoid);
 }
 
 IShader* RendererD3D12::CompileShader(

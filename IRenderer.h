@@ -48,6 +48,7 @@ namespace fb
 		virtual IIndexBuffer* CreateIndexBuffer(const void* indexData, UINT size, EDataFormat format, bool keepData) = 0;
 		virtual IUploadBuffer* CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer, EDescriptorHeapType heapType) = 0;
 		virtual PSOID CreateGraphicsPipelineState(const FPSODesc& psoDesc) = 0;
+		virtual void DestroyGraphicsPipelineState(PSOID psoid) = 0;
 		virtual IShader* CompileShader(const char* filepath, FShaderMacro* macros, int numMacros, EShaderType shaderType, const char* entryFunctionName) = 0;
 		virtual EDataFormat GetBackBufferFormat() const = 0;
 		virtual EDataFormat GetDepthStencilFormat() const = 0;

@@ -55,6 +55,7 @@ namespace fb
 		virtual IIndexBuffer* CreateIndexBuffer(const void* indexData, UINT size, EDataFormat format, bool keepData) override;
 		virtual IUploadBuffer* CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer, EDescriptorHeapType heapType) override;
 		virtual PSOID CreateGraphicsPipelineState(const FPSODesc& psoDesc) override;
+		virtual void DestroyGraphicsPipelineState(PSOID psoid) override;
 		virtual IShader* CompileShader(
 			const char* filepath, FShaderMacro* macros, int numMacros, EShaderType shaderType, const char* entryFunctionName) override;
 		virtual EDataFormat GetBackBufferFormat() const override;
