@@ -3,6 +3,7 @@
 #include "InputElementDesc.h"
 #include "../FBCommon/Types.h"
 #include "PrimitiveTopology.h"
+#include "IRootSignature.h"
 #define	FB_SIMULTANEOUS_RENDER_TARGET_COUNT	( 8 )
 #define	FB_DEFAULT_STENCIL_READ_MASK	( 0xff )
 #define	FB_DEFAULT_STENCIL_WRITE_MASK	( 0xff )
@@ -282,7 +283,7 @@ namespace fb {
 
 	struct FPSODesc
 	{
-		RootSignature pRootSignature = nullptr;
+		IRootSignatureIPtr pRootSignature = nullptr;
 		FShaderByteCode VS;
 		FShaderByteCode PS;
 		FShaderByteCode DS;

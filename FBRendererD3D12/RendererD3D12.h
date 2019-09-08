@@ -17,7 +17,7 @@ namespace fb
 		Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> RtvHeap;
 		Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> DsvHeap;
 		Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> DefaultDescriptorHeap;
-		Microsoft::WRL::ComPtr<ID3D12RootSignature> RootSignature;
+		IRootSignatureIPtr SimpleBoxRootSig;
 		std::unordered_map<PSOID, Microsoft::WRL::ComPtr<ID3D12PipelineState>> PSOs;
 		PSOID NextPSOId = 1;
 		HWND WindowHandle = 0;
@@ -69,8 +69,6 @@ namespace fb
 		virtual void TempCloseCommandList(bool runAndFlush) override;
 		virtual void TempBindDescriptorHeap(EDescriptorHeapType type) override;
 		virtual void TempCreateRootSignatureForSimpleBox() override;
-		virtual fb::RootSignature TempGetRootSignatureForSimpleBox() override;
-		virtual void TempBindRootSignature(fb::RootSignature rootSig) override;
 		virtual void TempBindVertexBuffer(const IVertexBufferIPtr& vb) override;
 		virtual void TempBindIndexBuffer(const IIndexBufferIPtr& ib) override;
 		virtual void TempSetPrimitiveTopology(const fb::EPrimitiveTopology topology) override;
@@ -85,6 +83,7 @@ namespace fb
 		ID3D12Device* GetDevice() const { return Device.Get(); }
 		ID3D12DescriptorHeap* GetDefaultDescriptorHeap() const { return DefaultDescriptorHeap.Get(); }
 		UINT GetCbvSrvUavDescriptorSize() const { return CbvSrvUavDescriptorSize; }
+		void Bind(ID3D12RootSignature* rootSig);
 		// Add Public Func;
 
 

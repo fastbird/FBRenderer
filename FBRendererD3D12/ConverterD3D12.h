@@ -149,7 +149,7 @@ namespace fb {
 	inline 	D3D12_GRAPHICS_PIPELINE_STATE_DESC Convert(const FPSODesc& s)
 	{
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = {
-			(ID3D12RootSignature*)s.pRootSignature,
+			(ID3D12RootSignature*)s.pRootSignature.get(),
 			Convert(s.VS),
 			Convert(s.PS),
 			Convert(s.DS),

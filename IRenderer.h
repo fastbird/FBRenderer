@@ -51,6 +51,8 @@ namespace fb
 		virtual IShader* CompileShader(const char* filepath, FShaderMacro* macros, int numMacros, EShaderType shaderType, const char* entryFunctionName) = 0;
 		virtual EDataFormat GetBackBufferFormat() const = 0;
 		virtual EDataFormat GetDepthStencilFormat() const = 0;
+		// definition format : type,num,gpuIndex; i.e. DTable,1,0
+		// types are defined in IRootSignature.h
 		virtual IRootSignature* CreateRootSignature(const char* definition) = 0;
 		virtual int GetSampleCount() const = 0;
 		virtual int GetMsaaQuality() const = 0;
@@ -61,8 +63,6 @@ namespace fb
 		virtual void TempCloseCommandList(bool runAndFlush) = 0;
 		virtual void TempBindDescriptorHeap(EDescriptorHeapType type) = 0;
 		virtual void TempCreateRootSignatureForSimpleBox() = 0;
-		virtual RootSignature TempGetRootSignatureForSimpleBox() = 0;
-		virtual void TempBindRootSignature(RootSignature rootSig) = 0;
 		virtual void TempBindVertexBuffer(const IVertexBufferIPtr& vb) = 0;
 		virtual void TempBindIndexBuffer(const IIndexBufferIPtr& ib) = 0;
 		virtual void TempSetPrimitiveTopology(const fb::EPrimitiveTopology topology) = 0;
