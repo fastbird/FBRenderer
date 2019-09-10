@@ -51,7 +51,7 @@ void UploadBuffer::CreateCBV(UINT elementIndex, EDescriptorHeapType heapType, UI
 {
 	assert(heapType == EDescriptorHeapType::Default);
 	D3D12_GPU_VIRTUAL_ADDRESS cbAddress = Resource->GetGPUVirtualAddress();
-	cbAddress += (UINT64)(elementIndex * ElementSize);
+	cbAddress += (UINT64)elementIndex * (UINT64)ElementSize;
 	
 	auto descriptorHeap = gRendererD3D12->GetDefaultDescriptorHeap();
 	auto handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(descriptorHeap->GetCPUDescriptorHandleForHeapStart());

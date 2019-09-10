@@ -52,6 +52,7 @@ void				Update(float dt);
 
 void OnMouseMove(WPARAM btnState, int x, int y);
 void OnMouseDown(WPARAM btnState, int x, int y);
+void OnMouseUp(WPARAM btnState, int x, int y);
 
 void BuildShadersAndInputLayout();
 
@@ -170,7 +171,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			{
 				gRenderer->Draw(dt);
 				using namespace std::chrono_literals;
-				std::this_thread::sleep_for(10ms);
+				std::this_thread::sleep_for(5ms);
 			}
 			CurrentFrameResourceIndex = (CurrentFrameResourceIndex + 1) % gRenderer->GetNumSwapchainBuffers();
 		}
@@ -302,7 +303,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             // TODO: Add any drawing code that uses hdc here...
             EndPaint(hWnd, &ps);
         }
-        break;
+		break;
     case WM_DESTROY:
         PostQuitMessage(0);
         break;
@@ -330,20 +331,26 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				ProjMat = glm::perspectiveFovLH(0.25f * glm::pi<float>(), (float)clientWidth, (float)clientHeight, 1.0f, 1000.0f);
 			}
 		}
-		return 0;
+		break;
 	}
 	case WM_MOUSEMOVE:
 		OnMouseMove(wParam, LOWORD(lParam), HIWORD(lParam));
-		return 0;
+		break;
 	case WM_LBUTTONDOWN:
 	case WM_MBUTTONDOWN:
 	case WM_RBUTTONDOWN:
 		OnMouseDown(wParam, LOWORD(lParam), HIWORD(lParam));
-		return 0;
-    default:
-        return DefWindowProc(hWnd, message, wParam, lParam);
+		break;
+	case WM_LBUTTONUP:
+	case WM_MBUTTONUP:
+	case WM_RBUTTONUP:
+		OnMouseUp(wParam, LOWORD(lParam), HIWORD(lParam));
+		break;
+	default:
+		return DefWindowProc(hWnd, message, wParam, lParam);
     }
-    return 0;
+
+	return 0;
 }
 
 // Message handler for about box.
@@ -482,6 +489,15 @@ void OnMouseDown(WPARAM btnState, int x, int y)
 
 	
 	SetCapture(WindowHandle);
+}
+
+void OnMouseUp(WPARAM btnState, int x, int y)
+{
+	LastMousePos.x = x;
+	LastMousePos.y = y;
+
+
+	ReleaseCapture();
 }
 
 fb::IShaderIPtr VS, PS;
@@ -775,7 +791,7 @@ void BuildConstantBuffers()
 	auto numFrameResources = gRenderer->GetNumSwapchainBuffers();
 	for (int frameIndex = 0; frameIndex < numFrameResources; ++frameIndex)
 	{
-		auto& curFR = gRenderer->GetFrameResource_WaitAvailable(CurrentFrameResourceIndex);
+		auto& curFR = gRenderer->GetFrameResource_WaitAvailable(frameIndex);
 		curFR.CBPerFrame = gRenderer->CreateUploadBuffer(sizeof(PassConstants), 1, true, fb::EDescriptorHeapType::Default);
 		curFR.CBPerFrame->CreateCBV(0, fb::EDescriptorHeapType::Default, PassCbvOffset + frameIndex);
 	}
