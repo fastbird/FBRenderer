@@ -6,5 +6,9 @@ namespace fb {
 	{
 		friend class RendererD3D12;
 		Microsoft::WRL::ComPtr<ID3D12CommandAllocator> CommandAllocator;
+
+	public:
+		virtual void Reset() override;
+		operator ID3D12CommandAllocator* () { return CommandAllocator.Get(); }
 	};
 }

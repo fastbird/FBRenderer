@@ -17,5 +17,6 @@ namespace fb
 		{
 			return D3D12_INDEX_BUFFER_VIEW{ Resource->GetGPUVirtualAddress(), Size, Format };
 		}
+		virtual void Bind() override;
 	};
 }

@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "IndexBuffer.h"
 #include "ConverterD3D12.h"
+#include "RendererD3D12.h"
 
 using namespace fb;
 
@@ -32,4 +33,9 @@ bool IndexBuffer::Initialize(const void* indexData, UINT size, EDataFormat forma
 EDataFormat IndexBuffer::GetFormat() const
 {
 	return Convert(Format);
+}
+
+void IndexBuffer::Bind()
+{
+	gRendererD3D12->GetGraphicsCommandList()->IASetIndexBuffer(&IndexBufferView());
 }

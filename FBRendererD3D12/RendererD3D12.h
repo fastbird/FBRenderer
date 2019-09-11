@@ -65,14 +65,16 @@ namespace fb
 		virtual int GetMsaaQuality() const override;
 		virtual int GetBackbufferWidth() const override;
 		virtual int GetBackbufferHeight() const override;
+		virtual void ResetCommandList(ICommandAllocatorIPtr cmdAllocator, PSOID pso, SetDefaultViewportAndScissor vs) override;
+		virtual void BindDescriptorHeap(EDescriptorHeapType type) override;
+		virtual void SetGraphicsRootDescriptorTable(int rootParamIndex, fb::EDescriptorHeapType heapType, int index) override;
+		virtual void SetPrimitiveTopology(const fb::EPrimitiveTopology topology) override;
 
 		virtual void TempResetCommandList() override;
-		virtual void TempCloseCommandList(bool runAndFlush) override;
-		virtual void TempBindDescriptorHeap(EDescriptorHeapType type) override;
+		virtual void TempCloseCommandList(bool runAndFlush) override;		
 		virtual void TempCreateRootSignatureForSimpleBox() override;
 		virtual void TempBindVertexBuffer(const IVertexBufferIPtr& vb) override;
-		virtual void TempBindIndexBuffer(const IIndexBufferIPtr& ib) override;
-		virtual void TempSetPrimitiveTopology(const fb::EPrimitiveTopology topology) override;
+		virtual void TempBindIndexBuffer(const IIndexBufferIPtr& ib) override;		
 		virtual void TempBindRootDescriptorTable(UINT slot, EDescriptorHeapType type) override;
 		virtual void TempDrawIndexedInstanced(UINT indexCount) override;
 
@@ -85,8 +87,9 @@ namespace fb
 		ID3D12DescriptorHeap* GetDefaultDescriptorHeap() const { return DefaultDescriptorHeap.Get(); }
 		UINT GetCbvSrvUavDescriptorSize() const { return CbvSrvUavDescriptorSize; }
 		void Bind(ID3D12RootSignature* rootSig);
+		ID3D12GraphicsCommandList* GetGraphicsCommandList() const { return CommandList.Get(); }
 		// Add Public Func;
-
+		
 
 	private:
 

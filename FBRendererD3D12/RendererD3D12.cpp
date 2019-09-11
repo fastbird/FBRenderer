@@ -229,27 +229,9 @@ void RendererD3D12::RegisterDrawCallback(DrawCallbackFunc func)
 
 void RendererD3D12::Draw(float dt)
 {
-	// Reuse the memory associated with command recording.
-	// We can only reset when the associated command lists have finished execution on the GPU.
-	ThrowIfFailed(DirectCmdAllocator->Reset());
-
-	// A command list can be reset after it has been added to the command queue via ExecuteCommandList.
-	// Reusing the command list reuses memory.
-	if (!PSOs.empty())
-	{
-		ThrowIfFailed(CommandList->Reset(DirectCmdAllocator.Get(), PSOs.begin()->second.Get()));
-	}
-	else {
-		ThrowIfFailed(CommandList->Reset(DirectCmdAllocator.Get(), nullptr));
-	}
-
 	// Indicate a state transition on the resource usage.
 	CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
-
-	// Set the viewport and scissor rect.  This needs to be reset whenever the command list is reset.
-	CommandList->RSSetViewports(1, &ScreenViewport);
-	CommandList->RSSetScissorRects(1, &ScissorRect);
 
 	// Clear the back buffer and depth buffer.
 	CommandList->ClearRenderTargetView(CurrentBackBufferView(), DirectX::Colors::LightSteelBlue, 0, nullptr);
@@ -494,6 +476,26 @@ int RendererD3D12::GetBackbufferHeight() const
 	return GetClientHeight();
 }
 
+void RendererD3D12::ResetCommandList(ICommandAllocatorIPtr cmdAllocator, PSOID pso, SetDefaultViewportAndScissor vs)
+{
+	bool set = false;
+	if (pso != 0) {
+		auto it = PSOs.find(pso);
+		if (it != PSOs.end())
+		{
+			CommandList->Reset((ID3D12CommandAllocator*)(CommandAllocator*)cmdAllocator.get(), it->second.Get());
+			set = true;
+		}
+	}
+	if (!set)
+		CommandList->Reset((ID3D12CommandAllocator*)(CommandAllocator*)cmdAllocator.get(), nullptr);
+
+	if (vs == SetDefaultViewportAndScissor::Yes) {
+		CommandList->RSSetViewports(1, &ScreenViewport);
+		CommandList->RSSetScissorRects(1, &ScissorRect);
+	}
+}
+
 void RendererD3D12::TempResetCommandList()
 {
 	ThrowIfFailed(CommandList->Reset(DirectCmdAllocator.Get(), nullptr));
@@ -510,7 +512,7 @@ void RendererD3D12::TempCloseCommandList(bool runAndFlush)
 	}
 }
 
-void RendererD3D12::TempBindDescriptorHeap(EDescriptorHeapType type)
+void RendererD3D12::BindDescriptorHeap(EDescriptorHeapType type)
 {
 	switch (type)
 	{
@@ -522,6 +524,20 @@ void RendererD3D12::TempBindDescriptorHeap(EDescriptorHeapType type)
 	}
 	}
 
+}
+
+void RendererD3D12::SetGraphicsRootDescriptorTable(int rootParamIndex, fb::EDescriptorHeapType heapType, int index)
+{
+	switch (heapType) {
+	case EDescriptorHeapType::Default:
+	{
+		auto passCbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(DefaultDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+		passCbvHandle.Offset(index, CbvSrvUavDescriptorSize);
+		CommandList->SetGraphicsRootDescriptorTable(1, passCbvHandle);
+	}
+	default:
+		assert(0 && "Not implemented.");
+	}
 }
 
 void RendererD3D12::TempCreateRootSignatureForSimpleBox()
@@ -569,7 +585,7 @@ void RendererD3D12::TempBindIndexBuffer(const IIndexBufferIPtr& ib)
 	CommandList->IASetIndexBuffer(&view);
 }
 
-void RendererD3D12::TempSetPrimitiveTopology(const fb::EPrimitiveTopology topology)
+void RendererD3D12::SetPrimitiveTopology(const fb::EPrimitiveTopology topology)
 {
 	CommandList->IASetPrimitiveTopology(Convert(topology));
 }

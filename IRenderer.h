@@ -14,6 +14,7 @@
 #include <functional>
 namespace fb
 {
+	enum class SetDefaultViewportAndScissor { No, Yes };
 	enum class RendererType {
 		D3D12
 	};	
@@ -27,6 +28,7 @@ namespace fb
 		friend void FinalizeRenderer(IRenderer*& renderer);
 		virtual bool Initialize(void* windowHandle) = 0;
 		virtual void Finalize() = 0;
+
 		void BuildFrameResources();
 
 	public:
@@ -59,16 +61,19 @@ namespace fb
 		virtual int GetMsaaQuality() const = 0;
 		virtual int GetBackbufferWidth() const = 0;
 		virtual int GetBackbufferHeight() const = 0;
-		
+		virtual void ResetCommandList(ICommandAllocatorIPtr cmdAllocator, PSOID pso, SetDefaultViewportAndScissor vs) = 0;
+		virtual void BindDescriptorHeap(EDescriptorHeapType type) = 0;
+		virtual void SetGraphicsRootDescriptorTable(int rootParamIndex, fb::EDescriptorHeapType heapType, int index) = 0;
+		virtual void SetPrimitiveTopology(const fb::EPrimitiveTopology topology) = 0;
+
 		virtual void TempResetCommandList() = 0;
-		virtual void TempCloseCommandList(bool runAndFlush) = 0;
-		virtual void TempBindDescriptorHeap(EDescriptorHeapType type) = 0;
+		virtual void TempCloseCommandList(bool runAndFlush) = 0;		
 		virtual void TempCreateRootSignatureForSimpleBox() = 0;
 		virtual void TempBindVertexBuffer(const IVertexBufferIPtr& vb) = 0;
-		virtual void TempBindIndexBuffer(const IIndexBufferIPtr& ib) = 0;
-		virtual void TempSetPrimitiveTopology(const fb::EPrimitiveTopology topology) = 0;
+		virtual void TempBindIndexBuffer(const IIndexBufferIPtr& ib) = 0;		
 		virtual void TempBindRootDescriptorTable(UINT slot, EDescriptorHeapType type) = 0;
 		virtual void TempDrawIndexedInstanced(UINT indexCount) = 0;
+		
 
 		UINT CalcConstantBufferByteSize(UINT beforeAligned) const;
 	};

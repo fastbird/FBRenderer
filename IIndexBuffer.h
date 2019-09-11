@@ -13,5 +13,6 @@ namespace fb
 		virtual UINT GetSize() const = 0;
 		virtual EDataFormat GetFormat() const = 0;
 		virtual UINT GetElementCount() const = 0;
+		virtual void Bind() = 0;
 	};
 }

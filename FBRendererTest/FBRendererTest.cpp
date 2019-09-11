@@ -36,6 +36,7 @@ UINT PassCbvOffset = 0;
 std::unordered_map<std::string, fb::IShaderIPtr> Shaders;
 fb::IRootSignatureIPtr SimpleBoxRootSig;
 fb::IRootSignatureIPtr MultiDrawRootSig;
+bool IsWireframe = false;
 // Global Variables:
 HINSTANCE hInst;       // current instance
 HWND WindowHandle;
@@ -427,9 +428,28 @@ bool BuildBoxGeometry()
 	return gBoxMesh->IsValid();
 }
 
+void UpdateObjectCBs(float dt, fb::FFrameResource& curFR)
+{
+	UINT objCount = (UINT)OpaqueRitems.size();
+	for (UINT i = 0; i < objCount; ++i)
+	{
+		auto& e = OpaqueRitems[i];
+		if (e->NumFramesDirty > 0)
+		{
+			ObjectConstants objConstants = { e->World };
+			curFR.CBPerObject->CopyData(e->ConstantBufferIndex, &objConstants);
+
+			// Next FrameResource need to be updated too.
+			e->NumFramesDirty--;
+		}
+	}
+}
+
 
 void Update(float dt)
 {
+	auto& curFR = gRenderer->GetFrameResource_WaitAvailable(CurrentFrameResourceIndex);
+
 	// Convert Spherical to Cartesian coordinates.
 	float x = Radius * sinf(Phi) * cosf(Theta);
 	float z = Radius * sinf(Phi) * sinf(Theta);
@@ -439,16 +459,14 @@ void Update(float dt)
 	glm::vec3 eyePos(x, y, z);
 	glm::vec3 target(0, 0, 0);
 	ViewMat = glm::lookAtLH(eyePos, target, glm::vec3(0, 1, 0));
-	auto wvp = ProjMat * ViewMat * WorldMat;
-	wvp = glm::transpose(wvp);
-	auto float16size = sizeof(float[16]);
-	assert(sizeof(wvp) == sizeof(float[16]));
+	
+	PassConstants pc;
+	pc.ViewProj = glm::transpose(ProjMat * ViewMat);
+	curFR.CBPerFrame->CopyData(0, &pc);
 
-	auto& curFR = gRenderer->GetFrameResource_WaitAvailable(CurrentFrameResourceIndex);
-
-	// TODO : This should be ViewProject.
-	curFR.CBPerFrame->CopyData(0, &wvp);
+	UpdateObjectCBs(dt, curFR);
 }
+
 void OnMouseMove(WPARAM btnState, int x, int y)
 {
 	if ((btnState & MK_LBUTTON) != 0)
@@ -797,14 +815,51 @@ void BuildConstantBuffers()
 	}
 }
 
+void DrawRenderItems(const std::vector<fb::RenderItem*>& ritems)
+{
+	UINT objCBByteSize = gRenderer->CalcConstantBufferByteSize(sizeof(ObjectConstants));
+
+	auto& curFR = gRenderer->GetFrameResource(CurrentFrameResourceIndex);
+	auto objectCB = curFR.CBPerObject->Resource();
+
+	// For each render item...
+	for (size_t i = 0; i < ritems.size(); ++i)
+	{
+		auto ri = ritems[i];
+
+		ri->VB->Bind(0);
+		ri->IB->Bind();
+		gRenderer->SetPrimitiveTopology(ri->PrimitiveTopology);
+
+		// Offset to the CBV in the descriptor heap for this object and for this frame resource.
+		UINT cbvIndex = mCurrFrameResourceIndex * (UINT)mOpaqueRitems.size() + ri->ObjCBIndex;
+		auto cbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvHeap->GetGPUDescriptorHandleForHeapStart());
+		cbvHandle.Offset(cbvIndex, mCbvSrvUavDescriptorSize);
+
+		cmdList->SetGraphicsRootDescriptorTable(0, cbvHandle);
+
+		cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
+	}
+}
+
 void Draw()
 {
-	gRenderer->TempBindDescriptorHeap(fb::EDescriptorHeapType::Default);
+	auto& curFR = gRenderer->GetFrameResource(CurrentFrameResourceIndex);
+	auto cmdListAlloc = curFR.CommandAllocator;
+	cmdListAlloc->Reset();
+
+	if (IsWireframe) {
+		gRenderer->ResetCommandList(cmdListAlloc, SimpleBoxPSO, fb::SetDefaultViewportAndScissor::Yes);
+	}
+	else {
+		gRenderer->ResetCommandList(cmdListAlloc, SimpleBoxPSOWireframe, fb::SetDefaultViewportAndScissor::Yes);
+	}
+
+	gRenderer->BindDescriptorHeap(fb::EDescriptorHeapType::Default);
 	SimpleBoxRootSig->Bind();
 
-	gRenderer->TempBindVertexBuffer(gBoxMesh->VertexBuffer);
-	gRenderer->TempBindIndexBuffer(gBoxMesh->IndexBuffer);
-	gRenderer->TempSetPrimitiveTopology(fb::EPrimitiveTopology::TRIANGLELIST);
-	gRenderer->TempBindRootDescriptorTable(0, fb::EDescriptorHeapType::Default);
-	gRenderer->TempDrawIndexedInstanced(gBoxMesh->IndexBuffer->GetElementCount());
+	int passCbvIndex = PassCbvOffset + CurrentFrameResourceIndex;
+	gRenderer->SetGraphicsRootDescriptorTable(1, fb::EDescriptorHeapType::Default, passCbvIndex);
+
+	DrawRenderItems(mCommandList.Get(), mOpaqueRitems);
 }
