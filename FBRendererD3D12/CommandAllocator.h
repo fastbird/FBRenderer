@@ -9,6 +9,5 @@ namespace fb {
 
 	public:
 		virtual void Reset() override;
-		operator ID3D12CommandAllocator* () { return CommandAllocator.Get(); }
 	};
 }

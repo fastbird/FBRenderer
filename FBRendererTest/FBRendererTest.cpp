@@ -42,6 +42,9 @@ HINSTANCE hInst;       // current instance
 HWND WindowHandle;
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
+UINT Width = 200;
+UINT Height = 100;
+UINT64 CurrentFence = 0;
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -63,7 +66,7 @@ void BuildShapeGeometry();
 void BuildRenderItems();
 void BuildDescriptorHeap();
 void BuildConstantBuffers();
-void Draw();
+void Draw(float dt);
 
 
 struct Vertex
@@ -170,7 +173,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			Update(dt);
 			if (gRenderer)
 			{
-				gRenderer->Draw(dt);
+				Draw(dt);
 				using namespace std::chrono_literals;
 				std::this_thread::sleep_for(5ms);
 			}
@@ -237,10 +240,13 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    ShowWindow(WindowHandle, nCmdShow);
    UpdateWindow(WindowHandle);
-
+   RECT r;
+   GetClientRect(WindowHandle, &r);
+   Width = r.right - r.left;
+   Height = r.bottom - r.top;
    gRenderer = fb::InitRenderer(fb::RendererType::D3D12, (void*)WindowHandle);
-
-   gRenderer->TempResetCommandList();
+   
+   gRenderer->ResetCommandList(nullptr, 0);
 
    BuildShapeGeometry();
 
@@ -251,16 +257,17 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    BuildConstantBuffers();
 
    BuildShadersAndInputLayout();
+   
    SimpleBoxRootSig = gRenderer->CreateRootSignature("DTable,1,0");
+   MultiDrawRootSig = gRenderer->CreateRootSignature("DTable,1,0;DTable,1,1;");
 
    BuildPSO();
 
-   gRenderer->RegisterDrawCallback(Draw);
    BuildBoxGeometry();
-   gRenderer->TempCloseCommandList(true);
-   auto clientWidth = gRenderer->GetBackbufferWidth();
-   auto clientHeight = gRenderer->GetBackbufferHeight();
-   ProjMat = glm::perspectiveFovLH(0.25f * glm::pi<float>(), (float)clientWidth, (float)clientHeight, 1.0f, 1000.0f);
+   gRenderer->CloseCommandList();
+   gRenderer->ExecuteCommandList();
+   gRenderer->FlushCommandQueue();
+   ProjMat = glm::perspectiveFovLH(0.25f * glm::pi<float>(), (float)Width, (float)Height, 1.0f, 1000.0f);
 
    return gRenderer != nullptr;
 }
@@ -321,15 +328,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_SIZE:
 	{
 		// Save the new client area dimensions.
-		UINT clientWidth = LOWORD(lParam);
-		UINT clientHeight = HIWORD(lParam);
+		Width = LOWORD(lParam);
+		Height = HIWORD(lParam);
 
 		if (gRenderer)
 		{
 			if (!Resizing)
 			{
 				gRenderer->OnResized();
-				ProjMat = glm::perspectiveFovLH(0.25f * glm::pi<float>(), (float)clientWidth, (float)clientHeight, 1.0f, 1000.0f);
+				ProjMat = glm::perspectiveFovLH(0.25f * glm::pi<float>(), (float)Width, (float)Height, 1.0f, 1000.0f);
 			}
 		}
 		break;
@@ -535,7 +542,7 @@ void BuildPSO()
 {
 	fb::FPSODesc psoDesc;
 	psoDesc.InputLayout = { InputLayout.data(), (UINT)InputLayout.size() };
-	psoDesc.pRootSignature = SimpleBoxRootSig;
+	psoDesc.pRootSignature = MultiDrawRootSig;
 	psoDesc.VS =
 	{
 		reinterpret_cast<BYTE*>(Shaders["standardVS"]->GetByteCode()),
@@ -558,11 +565,6 @@ void BuildPSO()
 	SimpleBoxPSO = gRenderer->CreateGraphicsPipelineState(psoDesc);
 	psoDesc.RasterizerState.FillMode = fb::EFillMode::WIREFRAME;
 	SimpleBoxPSOWireframe = gRenderer->CreateGraphicsPipelineState(psoDesc);
-}
-
-void BuildRootSignature()
-{
-	MultiDrawRootSig = gRenderer->CreateRootSignature("DTable,1,0;DTable,1,1;");
 }
 
 void BuildShapeGeometry()
@@ -742,6 +744,8 @@ void BuildRenderItems()
 		leftCylRitem->IndexCount = geo->DrawArgs["cylinder"].IndexCount;
 		leftCylRitem->StartIndexLocation = geo->DrawArgs["cylinder"].StartIndexLocation;
 		leftCylRitem->BaseVertexLocation = geo->DrawArgs["cylinder"].BaseVertexLocation;
+		leftCylRitem->VB = geo->VertexBuffer;
+		leftCylRitem->IB = geo->IndexBuffer;
 
 		rightCylRitem->World = rightCylWorld;
 		rightCylRitem->ConstantBufferIndex = objCBIndex++;
@@ -749,6 +753,8 @@ void BuildRenderItems()
 		rightCylRitem->IndexCount = geo->DrawArgs["cylinder"].IndexCount;
 		rightCylRitem->StartIndexLocation = geo->DrawArgs["cylinder"].StartIndexLocation;
 		rightCylRitem->BaseVertexLocation = geo->DrawArgs["cylinder"].BaseVertexLocation;
+		rightCylRitem->VB = geo->VertexBuffer;
+		rightCylRitem->IB = geo->IndexBuffer;
 
 		leftSphereRitem->World = leftSphereWorld;
 		leftSphereRitem->ConstantBufferIndex = objCBIndex++;
@@ -756,6 +762,8 @@ void BuildRenderItems()
 		leftSphereRitem->IndexCount = geo->DrawArgs["sphere"].IndexCount;
 		leftSphereRitem->StartIndexLocation = geo->DrawArgs["sphere"].StartIndexLocation;
 		leftSphereRitem->BaseVertexLocation = geo->DrawArgs["sphere"].BaseVertexLocation;
+		leftSphereRitem->VB = geo->VertexBuffer;
+		leftSphereRitem->IB = geo->IndexBuffer;
 
 		rightSphereRitem->World = rightSphereWorld;
 		rightSphereRitem->ConstantBufferIndex = objCBIndex++;
@@ -763,6 +771,8 @@ void BuildRenderItems()
 		rightSphereRitem->IndexCount = geo->DrawArgs["sphere"].IndexCount;
 		rightSphereRitem->StartIndexLocation = geo->DrawArgs["sphere"].StartIndexLocation;
 		rightSphereRitem->BaseVertexLocation = geo->DrawArgs["sphere"].BaseVertexLocation;
+		rightSphereRitem->VB = geo->VertexBuffer;
+		rightSphereRitem->IB = geo->IndexBuffer;
 
 		AllRitems.push_back(std::move(leftCylRitem));
 		AllRitems.push_back(std::move(rightCylRitem));
@@ -797,7 +807,7 @@ void BuildConstantBuffers()
 	// Need a CBV descriptor for each object for each frame resource.
 	for (int frameIndex = 0; frameIndex < numSwapchains; ++frameIndex)
 	{
-		auto& frameResource = gRenderer->GetFrameResource_WaitAvailable(frameIndex);
+		auto& frameResource = gRenderer->GetFrameResource(frameIndex);
 		frameResource.CBPerObject = gRenderer->CreateUploadBuffer(sizeof(ObjectConstants), objCount, true, fb::EDescriptorHeapType::Default);
 		for (UINT i = 0; i < objCount; ++i)
 		{
@@ -809,57 +819,65 @@ void BuildConstantBuffers()
 	auto numFrameResources = gRenderer->GetNumSwapchainBuffers();
 	for (int frameIndex = 0; frameIndex < numFrameResources; ++frameIndex)
 	{
-		auto& curFR = gRenderer->GetFrameResource_WaitAvailable(frameIndex);
+		auto& curFR = gRenderer->GetFrameResource(frameIndex);
 		curFR.CBPerFrame = gRenderer->CreateUploadBuffer(sizeof(PassConstants), 1, true, fb::EDescriptorHeapType::Default);
 		curFR.CBPerFrame->CreateCBV(0, fb::EDescriptorHeapType::Default, PassCbvOffset + frameIndex);
 	}
 }
 
-void DrawRenderItems(const std::vector<fb::RenderItem*>& ritems)
+void DrawRenderItems()
 {
-	UINT objCBByteSize = gRenderer->CalcConstantBufferByteSize(sizeof(ObjectConstants));
-
+	fb::EPrimitiveTopology LastPrimitiveTopology = fb::EPrimitiveTopology::UNDEFINED;
 	auto& curFR = gRenderer->GetFrameResource(CurrentFrameResourceIndex);
-	auto objectCB = curFR.CBPerObject->Resource();
-
 	// For each render item...
-	for (size_t i = 0; i < ritems.size(); ++i)
+	for (size_t i = 0; i < OpaqueRitems.size(); ++i)
 	{
-		auto ri = ritems[i];
+		auto ri = OpaqueRitems[i];
 
 		ri->VB->Bind(0);
 		ri->IB->Bind();
-		gRenderer->SetPrimitiveTopology(ri->PrimitiveTopology);
+		if (LastPrimitiveTopology != ri->PrimitiveTopology) {
+			gRenderer->SetPrimitiveTopology(ri->PrimitiveTopology);
+			LastPrimitiveTopology = ri->PrimitiveTopology;
+		}
 
 		// Offset to the CBV in the descriptor heap for this object and for this frame resource.
-		UINT cbvIndex = mCurrFrameResourceIndex * (UINT)mOpaqueRitems.size() + ri->ObjCBIndex;
-		auto cbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvHeap->GetGPUDescriptorHandleForHeapStart());
-		cbvHandle.Offset(cbvIndex, mCbvSrvUavDescriptorSize);
-
-		cmdList->SetGraphicsRootDescriptorTable(0, cbvHandle);
-
-		cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
+		UINT cbvIndex = CurrentFrameResourceIndex * (UINT)OpaqueRitems.size() + ri->ConstantBufferIndex;
+		gRenderer->SetGraphicsRootDescriptorTable(0, fb::EDescriptorHeapType::Default, cbvIndex);
+		gRenderer->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0 );
 	}
 }
 
-void Draw()
+void Draw(float dt)
 {
 	auto& curFR = gRenderer->GetFrameResource(CurrentFrameResourceIndex);
 	auto cmdListAlloc = curFR.CommandAllocator;
 	cmdListAlloc->Reset();
 
 	if (IsWireframe) {
-		gRenderer->ResetCommandList(cmdListAlloc, SimpleBoxPSO, fb::SetDefaultViewportAndScissor::Yes);
+		gRenderer->ResetCommandList(cmdListAlloc, SimpleBoxPSOWireframe);
 	}
 	else {
-		gRenderer->ResetCommandList(cmdListAlloc, SimpleBoxPSOWireframe, fb::SetDefaultViewportAndScissor::Yes);
+		gRenderer->ResetCommandList(cmdListAlloc, SimpleBoxPSO);
 	}
+	gRenderer->SetViewportAndScissor(Width, Height);
+	gRenderer->ResourceBarrier_Backbuffer_PresentToRenderTarget();
+	gRenderer->ClearRenderTargetDepthStencil();
+	gRenderer->SetDefaultRenderTargets();
 
 	gRenderer->BindDescriptorHeap(fb::EDescriptorHeapType::Default);
-	SimpleBoxRootSig->Bind();
-
+	MultiDrawRootSig->Bind();
 	int passCbvIndex = PassCbvOffset + CurrentFrameResourceIndex;
 	gRenderer->SetGraphicsRootDescriptorTable(1, fb::EDescriptorHeapType::Default, passCbvIndex);
 
-	DrawRenderItems(mCommandList.Get(), mOpaqueRitems);
+	DrawRenderItems();
+
+	gRenderer->ResourceBarrier_Backbuffer_RenderTargetToPresent();
+
+	gRenderer->CloseCommandList();
+	gRenderer->ExecuteCommandList();
+	gRenderer->PresentAndSwapBuffer();
+
+	curFR.Fence = ++CurrentFence;
+	gRenderer->SignalFence(curFR.Fence);
 }

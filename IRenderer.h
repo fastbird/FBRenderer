@@ -14,7 +14,6 @@
 #include <functional>
 namespace fb
 {
-	enum class SetDefaultViewportAndScissor { No, Yes };
 	enum class RendererType {
 		D3D12
 	};	
@@ -42,8 +41,6 @@ namespace fb
 
 		virtual int GetNumSwapchainBuffers() = 0;
 		virtual void OnResized() = 0;
-		virtual void RegisterDrawCallback(DrawCallbackFunc func) = 0;
-		virtual void Draw(float dt) = 0;
 
 		virtual ICommandAllocator* CreateCommandAllocator() = 0;
 		virtual IVertexBuffer* CreateVertexBuffer(const void* vertexData, UINT size, UINT stride, bool keepData) = 0;
@@ -61,13 +58,27 @@ namespace fb
 		virtual int GetMsaaQuality() const = 0;
 		virtual int GetBackbufferWidth() const = 0;
 		virtual int GetBackbufferHeight() const = 0;
-		virtual void ResetCommandList(ICommandAllocatorIPtr cmdAllocator, PSOID pso, SetDefaultViewportAndScissor vs) = 0;
+		virtual void ResetCommandList(ICommandAllocatorIPtr cmdAllocator, PSOID pso) = 0;
+		virtual void CloseCommandList() = 0;
+		virtual void ExecuteCommandList() = 0;
+		virtual void PresentAndSwapBuffer() = 0;
+		virtual void FlushCommandQueue() = 0;
 		virtual void BindDescriptorHeap(EDescriptorHeapType type) = 0;
 		virtual void SetGraphicsRootDescriptorTable(int rootParamIndex, fb::EDescriptorHeapType heapType, int index) = 0;
 		virtual void SetPrimitiveTopology(const fb::EPrimitiveTopology topology) = 0;
+		virtual void DrawIndexedInstanced(UINT IndexCountPerInstance,
+			UINT InstanceCount,
+			UINT StartIndexLocation,
+			INT BaseVertexLocation,
+			UINT StartInstanceLocation) = 0;
+		virtual void ResourceBarrier_Backbuffer_PresentToRenderTarget() = 0;
+		virtual void ResourceBarrier_Backbuffer_RenderTargetToPresent() = 0;
+		virtual void SetViewportAndScissor(UINT width, UINT height) = 0;
+		virtual void ClearRenderTargetDepthStencil() = 0;
+		virtual void SetDefaultRenderTargets() = 0;		
+		virtual void SignalFence(UINT64 fenceNumber) = 0;
 
-		virtual void TempResetCommandList() = 0;
-		virtual void TempCloseCommandList(bool runAndFlush) = 0;		
+		virtual void TempResetCommandList() = 0;		
 		virtual void TempCreateRootSignatureForSimpleBox() = 0;
 		virtual void TempBindVertexBuffer(const IVertexBufferIPtr& vb) = 0;
 		virtual void TempBindIndexBuffer(const IIndexBufferIPtr& ib) = 0;		

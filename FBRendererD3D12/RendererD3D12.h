@@ -36,8 +36,6 @@ namespace fb
 		D3D12_VIEWPORT ScreenViewport;
 		D3D12_RECT ScissorRect;
 
-		DrawCallbackFunc DrawCallback = nullptr;
-
 	public:
 		
 		// IRenderer Interfaces
@@ -47,8 +45,6 @@ namespace fb
 		virtual int GetNumSwapchainBuffers() override;
 		virtual void PrepareDescriptorHeap(EDescriptorHeapType heapType, UINT count) override;
 		virtual void OnResized() override;
-		virtual void RegisterDrawCallback(DrawCallbackFunc func) override;
-		virtual void Draw(float dt) override;
 
 		virtual ICommandAllocator* CreateCommandAllocator() override;
 		virtual IVertexBuffer* CreateVertexBuffer(const void* vertexData, UINT size, UINT stride, bool keepData) override;
@@ -65,13 +61,28 @@ namespace fb
 		virtual int GetMsaaQuality() const override;
 		virtual int GetBackbufferWidth() const override;
 		virtual int GetBackbufferHeight() const override;
-		virtual void ResetCommandList(ICommandAllocatorIPtr cmdAllocator, PSOID pso, SetDefaultViewportAndScissor vs) override;
+		virtual void ResetCommandList(ICommandAllocatorIPtr cmdAllocator, PSOID pso) override;
+		virtual void CloseCommandList() override;
+		virtual void ExecuteCommandList() override;
+		virtual void PresentAndSwapBuffer() override;
+		virtual void FlushCommandQueue() override;
+
 		virtual void BindDescriptorHeap(EDescriptorHeapType type) override;
 		virtual void SetGraphicsRootDescriptorTable(int rootParamIndex, fb::EDescriptorHeapType heapType, int index) override;
 		virtual void SetPrimitiveTopology(const fb::EPrimitiveTopology topology) override;
+		virtual void DrawIndexedInstanced(UINT IndexCountPerInstance,
+			UINT InstanceCount,
+			UINT StartIndexLocation,
+			INT BaseVertexLocation,
+			UINT StartInstanceLocation) override;
+		virtual void ResourceBarrier_Backbuffer_PresentToRenderTarget() override;
+		virtual void ResourceBarrier_Backbuffer_RenderTargetToPresent() override;
+		virtual void SetViewportAndScissor(UINT width, UINT height) override;
+		virtual void ClearRenderTargetDepthStencil() override;
+		virtual void SetDefaultRenderTargets() override;
+		virtual void SignalFence(UINT64 fenceNumber) override;
 
 		virtual void TempResetCommandList() override;
-		virtual void TempCloseCommandList(bool runAndFlush) override;		
 		virtual void TempCreateRootSignatureForSimpleBox() override;
 		virtual void TempBindVertexBuffer(const IVertexBufferIPtr& vb) override;
 		virtual void TempBindIndexBuffer(const IIndexBufferIPtr& ib) override;		
@@ -103,8 +114,6 @@ namespace fb
 
 		UINT GetClientWidth() const;
 		UINT GetClientHeight() const;
-		
-		void FlushCommandQueue();
 
 		ID3D12Resource* CurrentBackBuffer()const;
 		D3D12_CPU_DESCRIPTOR_HANDLE CurrentBackBufferView()const;

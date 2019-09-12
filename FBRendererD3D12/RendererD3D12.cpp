@@ -222,57 +222,6 @@ void RendererD3D12::OnResized()
 	ScissorRect = { 0, 0, (LONG)clientWidth, (LONG)clientHeight };
 }
 
-void RendererD3D12::RegisterDrawCallback(DrawCallbackFunc func)
-{
-	DrawCallback = func;
-}
-
-void RendererD3D12::Draw(float dt)
-{
-	// Indicate a state transition on the resource usage.
-	CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
-		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
-
-	// Clear the back buffer and depth buffer.
-	CommandList->ClearRenderTargetView(CurrentBackBufferView(), DirectX::Colors::LightSteelBlue, 0, nullptr);
-	CommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
-
-	// Specify the buffers we are going to render to.
-	CommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
-
-	if (DrawCallback) {
-		DrawCallback();
-	}
-	else {
-		// *************
-		// TEST CODE
-		CommandList->SetGraphicsRootSignature(((RootSignature*)SimpleBoxRootSig.get())->RootSignature.Get());
-		ID3D12DescriptorHeap* descriptorHeaps[] = { DefaultDescriptorHeap.Get() };
-		CommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
-		CommandList->SetGraphicsRootDescriptorTable(0, DefaultDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-	}
-
-	// Indicate a state transition on the resource usage.
-	CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
-		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
-
-	// Done recording commands.
-	ThrowIfFailed(CommandList->Close());
-
-	// Add the command list to the queue for execution.
-	ID3D12CommandList* cmdsLists[] = { CommandList.Get() };
-	CommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
-
-	// swap the back and front buffers
-	ThrowIfFailed(SwapChain->Present(0, 0));
-	CurrBackBuffer = (CurrBackBuffer + 1) % SwapChainBufferCount;
-
-	// Wait until frame commands are complete.  This waiting is inefficient and is
-	// done for simplicity.  Later we will show how to organize our rendering code
-	// so we do not have to wait per frame.
-	FlushCommandQueue();
-}
-
 ICommandAllocator* RendererD3D12::CreateCommandAllocator()
 {
 	auto ca = new CommandAllocator;
@@ -424,7 +373,7 @@ IRootSignature* RendererD3D12::CreateRootSignature(const char* definition)
 		++cpuIndex;
 	}
 
-	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(parameters.size(), slotRootParameter, 0, nullptr,
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc((UINT)parameters.size(), slotRootParameter, 0, nullptr,
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
 	ComPtr<ID3DBlob> serializedRootSig = nullptr;
@@ -476,40 +425,45 @@ int RendererD3D12::GetBackbufferHeight() const
 	return GetClientHeight();
 }
 
-void RendererD3D12::ResetCommandList(ICommandAllocatorIPtr cmdAllocator, PSOID pso, SetDefaultViewportAndScissor vs)
+void RendererD3D12::ResetCommandList(ICommandAllocatorIPtr cmdAllocator, PSOID pso)
 {
 	bool set = false;
 	if (pso != 0) {
 		auto it = PSOs.find(pso);
 		if (it != PSOs.end())
 		{
-			CommandList->Reset((ID3D12CommandAllocator*)(CommandAllocator*)cmdAllocator.get(), it->second.Get());
+			ThrowIfFailed(CommandList->Reset(
+				cmdAllocator ? ((CommandAllocator*)cmdAllocator.get())->CommandAllocator.Get() : DirectCmdAllocator.Get(), 
+				it->second.Get()));
 			set = true;
 		}
 	}
 	if (!set)
-		CommandList->Reset((ID3D12CommandAllocator*)(CommandAllocator*)cmdAllocator.get(), nullptr);
+		ThrowIfFailed(CommandList->Reset(
+			cmdAllocator ? ((CommandAllocator*)cmdAllocator.get())->CommandAllocator.Get() : DirectCmdAllocator.Get()
+			, nullptr));
+}
 
-	if (vs == SetDefaultViewportAndScissor::Yes) {
-		CommandList->RSSetViewports(1, &ScreenViewport);
-		CommandList->RSSetScissorRects(1, &ScissorRect);
-	}
+void RendererD3D12::CloseCommandList()
+{
+	ThrowIfFailed(CommandList->Close());
+}
+
+void RendererD3D12::ExecuteCommandList()
+{
+	ID3D12CommandList* cmdsLists[] = { CommandList.Get() };
+	CommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+}
+
+void RendererD3D12::PresentAndSwapBuffer()
+{
+	ThrowIfFailed(SwapChain->Present(0, 0));
+	CurrBackBuffer = (CurrBackBuffer + 1) % SwapChainBufferCount;
 }
 
 void RendererD3D12::TempResetCommandList()
 {
 	ThrowIfFailed(CommandList->Reset(DirectCmdAllocator.Get(), nullptr));
-}
-
-void RendererD3D12::TempCloseCommandList(bool runAndFlush)
-{
-	ThrowIfFailed(CommandList->Close());
-	if (runAndFlush)
-	{
-		ID3D12CommandList* cmdsLists[] = { CommandList.Get() };
-		CommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
-		FlushCommandQueue();
-	}
 }
 
 void RendererD3D12::BindDescriptorHeap(EDescriptorHeapType type)
@@ -523,7 +477,6 @@ void RendererD3D12::BindDescriptorHeap(EDescriptorHeapType type)
 		break;
 	}
 	}
-
 }
 
 void RendererD3D12::SetGraphicsRootDescriptorTable(int rootParamIndex, fb::EDescriptorHeapType heapType, int index)
@@ -534,6 +487,7 @@ void RendererD3D12::SetGraphicsRootDescriptorTable(int rootParamIndex, fb::EDesc
 		auto passCbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(DefaultDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 		passCbvHandle.Offset(index, CbvSrvUavDescriptorSize);
 		CommandList->SetGraphicsRootDescriptorTable(1, passCbvHandle);
+		break;
 	}
 	default:
 		assert(0 && "Not implemented.");
@@ -588,6 +542,59 @@ void RendererD3D12::TempBindIndexBuffer(const IIndexBufferIPtr& ib)
 void RendererD3D12::SetPrimitiveTopology(const fb::EPrimitiveTopology topology)
 {
 	CommandList->IASetPrimitiveTopology(Convert(topology));
+}
+
+void RendererD3D12::DrawIndexedInstanced(UINT IndexCountPerInstance,
+	UINT InstanceCount,
+	UINT StartIndexLocation,
+	INT BaseVertexLocation,
+	UINT StartInstanceLocation)
+{
+	CommandList->DrawIndexedInstanced(IndexCountPerInstance, InstanceCount, StartIndexLocation, BaseVertexLocation, StartInstanceLocation);
+}
+
+void RendererD3D12::ResourceBarrier_Backbuffer_PresentToRenderTarget()
+{
+	CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+}
+
+void RendererD3D12::ResourceBarrier_Backbuffer_RenderTargetToPresent()
+{
+	CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+}
+
+void RendererD3D12::SetViewportAndScissor(UINT width, UINT height)
+{
+	D3D12_VIEWPORT viewport;
+	viewport.TopLeftX = 0;
+	viewport.TopLeftY = 0;
+	viewport.Width = static_cast<float>(width);
+	viewport.Height = static_cast<float>(height);
+	viewport.MinDepth = 0.0f;
+	viewport.MaxDepth = 1.0f;
+
+	D3D12_RECT rect = { 0, 0, (LONG)width, (LONG)height};
+
+	CommandList->RSSetViewports(1, &viewport);
+	CommandList->RSSetScissorRects(1, &rect);
+}
+
+void RendererD3D12::ClearRenderTargetDepthStencil()
+{
+	CommandList->ClearRenderTargetView(CurrentBackBufferView(), DirectX::Colors::LightSteelBlue, 0, nullptr);
+	CommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+}
+
+void RendererD3D12::SetDefaultRenderTargets()
+{
+	CommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
+}
+
+void RendererD3D12::SignalFence(UINT64 fenceNumber)
+{
+	CommandQueue->Signal(Fence.Get(), fenceNumber);
 }
 
 void RendererD3D12::TempBindRootDescriptorTable(UINT slot, EDescriptorHeapType type)
