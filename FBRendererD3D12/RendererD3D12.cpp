@@ -8,6 +8,7 @@
 #include "Shader.h"
 #include "ConverterD3D12.h"
 #include "RootSignature.h"
+#include <iostream>
 #include "../../FBCommon/StringHeader.h"
 
 using namespace fb;
@@ -28,6 +29,7 @@ static void Test()
 
 bool RendererD3D12::Initialize(void* windowHandle)
 {
+	std::cout << "Initializing Renderer D3D12." << std::endl;
 	gRendererD3D12 = this;
 
 	Test();
@@ -51,6 +53,8 @@ bool RendererD3D12::Initialize(void* windowHandle)
 
 	ThrowIfFailed(Device->CreateFence(0, D3D12_FENCE_FLAG_NONE,
 		IID_PPV_ARGS(&Fence)));
+
+	FenceEventHandle = CreateEventEx(nullptr, false, false, EVENT_ALL_ACCESS);
 
 	RtvDescriptorSize = Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	DsvDescriptorSize = Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
@@ -77,14 +81,17 @@ bool RendererD3D12::Initialize(void* windowHandle)
 	CreateCommandObjects();
 	CreateSwapChain();
 	CreateRtvAndDsvDescriptorHeaps();
+
 	OnResized();
 
+	std::cout << "Finish Initialization." << std::endl;
 	return true;
 }
 
 void RendererD3D12::Finalize()
 {
 	PSOs.clear();
+	CloseHandle(FenceEventHandle);
 	gRendererD3D12 = nullptr;
 	delete this;
 }
@@ -94,10 +101,8 @@ void RendererD3D12::WaitFence(UINT64 fence)
 	if (fence == 0)
 		return;
 	if (Fence->GetCompletedValue() < fence) {
-		HANDLE eventHandle = CreateEventEx(nullptr, false, false, EVENT_ALL_ACCESS);
-		ThrowIfFailed(Fence->SetEventOnCompletion(fence, eventHandle));
-		WaitForSingleObject(eventHandle, INFINITE);
-		CloseHandle(eventHandle);
+		ThrowIfFailed(Fence->SetEventOnCompletion(fence, FenceEventHandle));
+		WaitForSingleObject(FenceEventHandle, INFINITE);
 	}
 }
 
@@ -207,7 +212,7 @@ void RendererD3D12::OnResized()
 	ThrowIfFailed(CommandList->Close());
 	ID3D12CommandList* cmdsLists[] = { CommandList.Get() };
 	CommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
-
+	SignalFence();
 	// Wait until resize is complete.
 	FlushCommandQueue();
 
@@ -486,7 +491,7 @@ void RendererD3D12::SetGraphicsRootDescriptorTable(int rootParamIndex, fb::EDesc
 	{
 		auto passCbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(DefaultDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 		passCbvHandle.Offset(index, CbvSrvUavDescriptorSize);
-		CommandList->SetGraphicsRootDescriptorTable(1, passCbvHandle);
+		CommandList->SetGraphicsRootDescriptorTable(rootParamIndex, passCbvHandle);
 		break;
 	}
 	default:
@@ -592,9 +597,11 @@ void RendererD3D12::SetDefaultRenderTargets()
 	CommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
 }
 
-void RendererD3D12::SignalFence(UINT64 fenceNumber)
+UINT64 RendererD3D12::SignalFence()
 {
+	auto fenceNumber = ++LastSignaledFenceNumber;
 	CommandQueue->Signal(Fence.Get(), fenceNumber);
+	return fenceNumber;
 }
 
 void RendererD3D12::TempBindRootDescriptorTable(UINT slot, EDescriptorHeapType type)
@@ -797,24 +804,13 @@ std::vector<PendingUploaderRemovalInfo> PendingUploaderRemovalInfos;
 
 void RendererD3D12::FlushCommandQueue()
 {
-	++CurrentFence;
-
-	// Add an instruction to the command queue to set a new fence point.  Because we 
-	// are on the GPU timeline, the new fence point won't be set until the GPU finishes
-	// processing all the commands prior to this Signal().
-	ThrowIfFailed(CommandQueue->Signal(Fence.Get(), CurrentFence));
-
 	// Wait until the GPU has completed commands up to this fence point.
-	if (Fence->GetCompletedValue() < CurrentFence)
+	if (LastSignaledFenceNumber != 0 && Fence->GetCompletedValue() < LastSignaledFenceNumber)
 	{
-		HANDLE eventHandle = CreateEventEx(nullptr, false, false, EVENT_ALL_ACCESS);
-
 		// Fire event when GPU hits current fence.  
-		ThrowIfFailed(Fence->SetEventOnCompletion(CurrentFence, eventHandle));
-
+		ThrowIfFailed(Fence->SetEventOnCompletion(LastSignaledFenceNumber, FenceEventHandle));
 		// Wait until the GPU hits current fence event is fired.
-		WaitForSingleObject(eventHandle, INFINITE);
-		CloseHandle(eventHandle);
+		WaitForSingleObject(FenceEventHandle, INFINITE);
 	}
 
 	for (auto info : PendingUploaderRemovalInfos)

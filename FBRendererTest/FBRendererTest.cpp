@@ -15,59 +15,9 @@
 #include <array>
 #include <unordered_map>
 
+#include <iostream>
+#include <fstream>
 #define MAX_LOADSTRING 100
-
-fb::IRenderer* gRenderer = nullptr;
-struct MeshGeometry* gBoxMesh = nullptr;
-float Radius = 5.0f;
-float Phi = glm::four_over_pi<float>();
-float Theta = 1.5f * glm::pi<float>();
-glm::mat4 WorldMat(1.0f), ViewMat(1.0f), ProjMat(1.0f);
-fb::IUploadBuffer* PerPassCBs = nullptr;
-std::vector<fb::IUploadBuffer*> PerObjectCBs;
-POINT LastMousePos;
-fb::PSOID SimpleBoxPSO;
-fb::PSOID SimpleBoxPSOWireframe;
-UINT CurrentFrameResourceIndex = 0;
-std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> Geometries;
-std::vector<std::unique_ptr<fb::RenderItem>> AllRitems;
-std::vector<fb::RenderItem*> OpaqueRitems;
-UINT PassCbvOffset = 0;
-std::unordered_map<std::string, fb::IShaderIPtr> Shaders;
-fb::IRootSignatureIPtr SimpleBoxRootSig;
-fb::IRootSignatureIPtr MultiDrawRootSig;
-bool IsWireframe = false;
-// Global Variables:
-HINSTANCE hInst;       // current instance
-HWND WindowHandle;
-WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
-WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
-UINT Width = 200;
-UINT Height = 100;
-UINT64 CurrentFence = 0;
-
-// Forward declarations of functions included in this code module:
-ATOM                MyRegisterClass(HINSTANCE hInstance);
-BOOL                InitInstance(HINSTANCE, int);
-LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
-INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
-bool				BuildBoxGeometry();
-void				Update(float dt);
-
-void OnMouseMove(WPARAM btnState, int x, int y);
-void OnMouseDown(WPARAM btnState, int x, int y);
-void OnMouseUp(WPARAM btnState, int x, int y);
-
-void BuildShadersAndInputLayout();
-
-void BuildPSO();
-
-void BuildShapeGeometry();
-void BuildRenderItems();
-void BuildDescriptorHeap();
-void BuildConstantBuffers();
-void Draw(float dt);
-
 
 struct Vertex
 {
@@ -127,6 +77,56 @@ struct PassConstants
 	float DeltaTime = 0.0f;
 };
 
+fb::IRenderer* gRenderer = nullptr;
+//struct MeshGeometry* gBoxMesh = nullptr;
+float Radius = 30.0f;
+float Phi = glm::four_over_pi<float>();
+float Theta = 1.5f * glm::pi<float>();
+glm::mat4 WorldMat(1.0f), ViewMat(1.0f), ProjMat(1.0f);
+fb::IUploadBuffer* PerPassCBs = nullptr;
+std::vector<fb::IUploadBuffer*> PerObjectCBs;
+POINT LastMousePos;
+fb::PSOID SimpleBoxPSO;
+fb::PSOID SimpleBoxPSOWireframe;
+UINT CurrentFrameResourceIndex = 0;
+std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> Geometries;
+std::vector<std::unique_ptr<fb::RenderItem>> AllRitems;
+std::vector<fb::RenderItem*> OpaqueRitems;
+UINT PassCbvOffset = 0;
+std::unordered_map<std::string, fb::IShaderIPtr> Shaders;
+fb::IRootSignatureIPtr SimpleBoxRootSig;
+fb::IRootSignatureIPtr MultiDrawRootSig;
+bool IsWireframe = false;
+// Global Variables:
+HINSTANCE hInst;       // current instance
+HWND WindowHandle;
+WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
+WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
+UINT Width = 200;
+UINT Height = 100;
+
+// Forward declarations of functions included in this code module:
+ATOM                MyRegisterClass(HINSTANCE hInstance);
+BOOL                InitInstance(HINSTANCE, int);
+LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
+INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
+//bool				BuildBoxGeometry();
+void				Update(float dt);
+
+void OnMouseMove(WPARAM btnState, int x, int y);
+void OnMouseDown(WPARAM btnState, int x, int y);
+void OnMouseUp(WPARAM btnState, int x, int y);
+
+void BuildShadersAndInputLayout();
+
+void BuildPSO();
+
+void BuildShapeGeometry();
+void BuildRenderItems();
+void BuildDescriptorHeap();
+void BuildConstantBuffers();
+void Draw(float dt);
+
 
 void Test()
 {
@@ -140,6 +140,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
 
+	std::ofstream out("log.txt");
+	std::streambuf* coutbuf = std::cout.rdbuf(); //save old buf
+	std::cout.rdbuf(out.rdbuf()); //redirect std::cout to out.txt!
+
     // TODO: Place code here.
 	Test();
     // Initialize global strings
@@ -150,6 +154,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     // Perform application initialization:
     if (!InitInstance (hInstance, nCmdShow))
     {
+		std::cout << "InitInstance() failed!" << std::endl;
         return FALSE;
     }
 
@@ -173,6 +178,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			Update(dt);
 			if (gRenderer)
 			{
+				std::cout << "Calling Draw()" << std::endl;
 				Draw(dt);
 				using namespace std::chrono_literals;
 				std::this_thread::sleep_for(5ms);
@@ -181,10 +187,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		}
 	}
 
-	delete gBoxMesh; gBoxMesh = nullptr;
+	//delete gBoxMesh; gBoxMesh = nullptr;
 	delete PerPassCBs; PerPassCBs = nullptr;
 	fb::FinalizeRenderer(gRenderer);
-
+	std::cout << "Renderer Finalized!" << std::endl;
     return (int) msg.wParam;
 }
 
@@ -245,30 +251,52 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    Width = r.right - r.left;
    Height = r.bottom - r.top;
    gRenderer = fb::InitRenderer(fb::RendererType::D3D12, (void*)WindowHandle);
-   
+
    gRenderer->ResetCommandList(nullptr, 0);
+   std::cout << "Reset Command List" << std::endl;
 
    BuildShapeGeometry();
 
+   std::cout << "Build Shape Geometry" << std::endl;
+
    BuildRenderItems();
+
+   std::cout << "Build Render Items" << std::endl;
 
    BuildDescriptorHeap();
 
+   std::cout << "Build Descriptor Heap" << std::endl;
+
    BuildConstantBuffers();
 
+   std::cout << "Build Constant Buffers" << std::endl;
+
    BuildShadersAndInputLayout();
+
+   std::cout << "Build Shaders And Input Layout." << std::endl;
    
    SimpleBoxRootSig = gRenderer->CreateRootSignature("DTable,1,0");
    MultiDrawRootSig = gRenderer->CreateRootSignature("DTable,1,0;DTable,1,1;");
 
+   std::cout << "Root sig." << std::endl;
+
    BuildPSO();
 
-   BuildBoxGeometry();
-   gRenderer->CloseCommandList();
-   gRenderer->ExecuteCommandList();
-   gRenderer->FlushCommandQueue();
-   ProjMat = glm::perspectiveFovLH(0.25f * glm::pi<float>(), (float)Width, (float)Height, 1.0f, 1000.0f);
+   std::cout << "Build PSO." << std::endl;
 
+   //BuildBoxGeometry();
+   
+	gRenderer->CloseCommandList();
+	std::cout << "Close CommandList." << std::endl;
+	gRenderer->ExecuteCommandList();
+	std::cout << "ExecuteCommandList." << std::endl;
+	gRenderer->SignalFence();
+	std::cout << "SignalFence." << std::endl;
+	gRenderer->FlushCommandQueue();
+	std::cout << "FlushCommandQueue" << std::endl;
+	ProjMat = glm::perspectiveFovLH(0.25f * glm::pi<float>(), (float)Width, (float)Height, 1.0f, 1000.0f);
+   
+   std::cout << "Initialize finish." << std::endl;
    return gRenderer != nullptr;
 }
 
@@ -384,56 +412,56 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 
 
 
-bool BuildBoxGeometry()
-{
-	std::array<Vertex, 8> vertices =
-	{
-		Vertex{-1.0f, -1.0f, -1.0f,		1.0f, 1.0f, 1.0f, 1.0f},
-		Vertex{-1.0f, +1.0f, -1.0f,		0.0f, 0.0f, 0.0f, 1.0f},
-		Vertex{+1.0f, +1.0f, -1.0f,		1.0f, 0.0f, 0.0f, 1.0f},
-		Vertex{+1.0f, -1.0f, -1.0f,		0.0f, 1.0f, 0.0f, 1.0f},
-		Vertex{-1.0f, -1.0f, +1.0f,		0.0f, 0.0f, 1.0f, 1.0f},
-		Vertex{-1.0f, +1.0f, +1.0f,		1.0f, 1.0f, 0.0f, 1.0f}, // yellow
-		Vertex{+1.0f, +1.0f, +1.0f,		0.0f, 1.0f, 1.0f, 1.0f}, // cyan
-		Vertex{+1.0f, -1.0f, +1.0f,		1.0f, 0.0f, 1.0f, 1.0f}, // magenta
-	};
-
-	std::array<std::uint16_t, 36> indices =
-	{
-		// front face
-		0, 1, 2,
-		0, 2, 3,
-
-		// back face
-		4, 6, 5,
-		4, 7, 6,
-
-		// left face
-		4, 5, 1,
-		4, 1, 0,
-
-		// right face
-		3, 2, 6,
-		3, 6, 7,
-
-		// top face
-		1, 5, 6,
-		1, 6, 2,
-
-		// bottom face
-		4, 0, 3,
-		4, 3, 7
-	};
-
-	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
-	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
-
-	gBoxMesh = new MeshGeometry;
-	gBoxMesh->Name = "boxGeo";
-	gBoxMesh->VertexBuffer = gRenderer->CreateVertexBuffer(vertices.data(), vbByteSize, sizeof(Vertex), false);
-	gBoxMesh->IndexBuffer = gRenderer->CreateIndexBuffer(indices.data(), ibByteSize, fb::EDataFormat::R16_UINT, false);
-	return gBoxMesh->IsValid();
-}
+//bool BuildBoxGeometry()
+//{
+//	std::array<Vertex, 8> vertices =
+//	{
+//		Vertex{-1.0f, -1.0f, -1.0f,		1.0f, 1.0f, 1.0f, 1.0f},
+//		Vertex{-1.0f, +1.0f, -1.0f,		0.0f, 0.0f, 0.0f, 1.0f},
+//		Vertex{+1.0f, +1.0f, -1.0f,		1.0f, 0.0f, 0.0f, 1.0f},
+//		Vertex{+1.0f, -1.0f, -1.0f,		0.0f, 1.0f, 0.0f, 1.0f},
+//		Vertex{-1.0f, -1.0f, +1.0f,		0.0f, 0.0f, 1.0f, 1.0f},
+//		Vertex{-1.0f, +1.0f, +1.0f,		1.0f, 1.0f, 0.0f, 1.0f}, // yellow
+//		Vertex{+1.0f, +1.0f, +1.0f,		0.0f, 1.0f, 1.0f, 1.0f}, // cyan
+//		Vertex{+1.0f, -1.0f, +1.0f,		1.0f, 0.0f, 1.0f, 1.0f}, // magenta
+//	};
+//
+//	std::array<std::uint16_t, 36> indices =
+//	{
+//		// front face
+//		0, 1, 2,
+//		0, 2, 3,
+//
+//		// back face
+//		4, 6, 5,
+//		4, 7, 6,
+//
+//		// left face
+//		4, 5, 1,
+//		4, 1, 0,
+//
+//		// right face
+//		3, 2, 6,
+//		3, 6, 7,
+//
+//		// top face
+//		1, 5, 6,
+//		1, 6, 2,
+//
+//		// bottom face
+//		4, 0, 3,
+//		4, 3, 7
+//	};
+//
+//	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+//	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+//
+//	gBoxMesh = new MeshGeometry;
+//	gBoxMesh->Name = "boxGeo";
+//	gBoxMesh->VertexBuffer = gRenderer->CreateVertexBuffer(vertices.data(), vbByteSize, sizeof(Vertex), false);
+//	gBoxMesh->IndexBuffer = gRenderer->CreateIndexBuffer(indices.data(), ibByteSize, fb::EDataFormat::R16_UINT, false);
+//	return gBoxMesh->IsValid();
+//}
 
 void UpdateObjectCBs(float dt, fb::FFrameResource& curFR)
 {
@@ -443,7 +471,7 @@ void UpdateObjectCBs(float dt, fb::FFrameResource& curFR)
 		auto& e = OpaqueRitems[i];
 		if (e->NumFramesDirty > 0)
 		{
-			ObjectConstants objConstants = { e->World };
+			ObjectConstants objConstants = { glm::transpose(e->World) };
 			curFR.CBPerObject->CopyData(e->ConstantBufferIndex, &objConstants);
 
 			// Next FrameResource need to be updated too.
@@ -512,7 +540,6 @@ void OnMouseDown(WPARAM btnState, int x, int y)
 	LastMousePos.x = x;
 	LastMousePos.y = y;
 
-	
 	SetCapture(WindowHandle);
 }
 
@@ -556,6 +583,7 @@ void BuildPSO()
 	//psoDesc.RasterizerState
 	//psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 	//psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+	psoDesc.RasterizerState.CullMode = fb::ECullMode::NONE;
 	psoDesc.PrimitiveTopologyType = fb::EPrimitiveTopologyType::TRIANGLE;
 	psoDesc.NumRenderTargets = 1;
 	psoDesc.RTVFormats[0] = gRenderer->GetBackBufferFormat();
@@ -878,6 +906,5 @@ void Draw(float dt)
 	gRenderer->ExecuteCommandList();
 	gRenderer->PresentAndSwapBuffer();
 
-	curFR.Fence = ++CurrentFence;
-	gRenderer->SignalFence(curFR.Fence);
+	 curFR.Fence = gRenderer->SignalFence();
 }

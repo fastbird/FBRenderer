@@ -1,5 +1,6 @@
 #include "FBRenderer.h"
 #include <exception>
+#include <iostream>
 #include "IRenderer.h"
 
 // for windows
@@ -11,23 +12,31 @@ using namespace fb;
 typedef fb::IRenderer* (*CreateRendererD3D12)();
 IRenderer* fb::InitRenderer(RendererType type, void* windowHandle)
 {
+	std::cout << "fb::InitRenderer" << std::endl;
 	switch (type)
 	{
 	case RendererType::D3D12:
 	{
 		HMODULE hmodule = LoadLibrary("FBRendererD3D12.dll");
 		if (!hmodule)
-			throw std::exception("Cannot load FBRendererD3D12.dll");
+		{
+			std::cout << "Cannot load FBRendererD3D12.dll" << std::endl;
+			return nullptr;
+		}
 		auto createFunc = (CreateRendererD3D12)GetProcAddress(hmodule, "CreateRendererD3D12");
 		auto renderer = createFunc();
 		if (!renderer)
+		{
+			std::cout << "Failed to create Renderer." << std::endl;
 			return nullptr;
+		}
 		renderer->Initialize(windowHandle);
 		renderer->BuildFrameResources();
 		return renderer;
 
 	}
 	}
+	std::cout << "Failed to initialize renderer!" << std::endl;
 	return nullptr;
 }
 

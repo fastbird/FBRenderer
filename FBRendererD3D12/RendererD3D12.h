@@ -7,6 +7,8 @@ namespace fb
 		Microsoft::WRL::ComPtr<IDXGIFactory4> DXGIFactory;
 		Microsoft::WRL::ComPtr<ID3D12Device> Device;
 		Microsoft::WRL::ComPtr<ID3D12Fence> Fence;
+		HANDLE FenceEventHandle;
+		UINT64 LastSignaledFenceNumber = 0;
 		Microsoft::WRL::ComPtr<ID3D12CommandQueue> CommandQueue;
 		Microsoft::WRL::ComPtr<ID3D12CommandAllocator> DirectCmdAllocator;
 		Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> CommandList;
@@ -29,8 +31,6 @@ namespace fb
 		DXGI_FORMAT DepthStencilFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 		bool      Msaa4xState = false;    // 4X MSAA enabled
 		UINT      Msaa4xQuality = 0;      // quality level of 4X MSAA
-
-		UINT64 CurrentFence = 0;
 		int CurrBackBuffer = 0;
 
 		D3D12_VIEWPORT ScreenViewport;
@@ -80,7 +80,7 @@ namespace fb
 		virtual void SetViewportAndScissor(UINT width, UINT height) override;
 		virtual void ClearRenderTargetDepthStencil() override;
 		virtual void SetDefaultRenderTargets() override;
-		virtual void SignalFence(UINT64 fenceNumber) override;
+		virtual UINT64 SignalFence() override;
 
 		virtual void TempResetCommandList() override;
 		virtual void TempCreateRootSignatureForSimpleBox() override;

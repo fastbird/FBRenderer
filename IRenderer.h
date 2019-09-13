@@ -76,7 +76,8 @@ namespace fb
 		virtual void SetViewportAndScissor(UINT width, UINT height) = 0;
 		virtual void ClearRenderTargetDepthStencil() = 0;
 		virtual void SetDefaultRenderTargets() = 0;		
-		virtual void SignalFence(UINT64 fenceNumber) = 0;
+		virtual UINT64 SignalFence() = 0;
+		
 
 		virtual void TempResetCommandList() = 0;		
 		virtual void TempCreateRootSignatureForSimpleBox() = 0;

@@ -14,5 +14,5 @@ UINT Shader::Size()
 {
 	if (!ByteCode)
 		return 0;
-	return ByteCode->GetBufferSize();
+	return (UINT)ByteCode->GetBufferSize();
 }
