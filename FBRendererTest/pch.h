@@ -1,7 +1,3 @@
-// header.h : include file for standard system include files,
-// or project specific include files
-//
-
 #pragma once
 
 #include "targetver.h"
@@ -13,3 +9,14 @@
 #include <malloc.h>
 #include <memory.h>
 #include <tchar.h>
+#include <chrono>
+#include <thread>
+#include <array>
+#include <unordered_map>
+#include <iostream>
+#include <fstream>
+#include <algorithm>
+#include <vector>
+#include <cassert>
+
+#include "../../FBCommon/glm.h"

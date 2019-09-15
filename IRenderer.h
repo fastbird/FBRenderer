@@ -1,17 +1,19 @@
 #pragma once
 #include <vector>
+#include <functional>
 #include "Types.h"
 #include "../FBCommon/IRefCounted.h"
 #include "DataFormat.h"
 #include "InputElementDesc.h"
 #include "IShader.h"
 #include "PSO.h"
-#include "FrameResource.h"
+#include "IUploadBuffer.h"
+#include "ICommandAllocator.h"
 #include "EDescriptorHeapType.h"
 #include "IVertexBuffer.h"
 #include "IIndexBuffer.h"
 #include "IRootSignature.h"
-#include <functional>
+
 namespace fb
 {
 	enum class RendererType {
@@ -21,20 +23,12 @@ namespace fb
 	using DrawCallbackFunc = void (*)();
 	class IRenderer
 	{
-		std::vector<FFrameResource> FrameResources;
-
 		friend IRenderer* InitRenderer(RendererType type, void* windowHandle);
 		friend void FinalizeRenderer(IRenderer*& renderer);
 		virtual bool Initialize(void* windowHandle) = 0;
 		virtual void Finalize() = 0;
 
-		void BuildFrameResources();
-
-	public:
-		
-		
-		FFrameResource& GetFrameResource(UINT index) { return FrameResources[index]; }
-		FFrameResource& GetFrameResource_WaitAvailable(UINT index);
+	public:	
 
 		virtual void PrepareDescriptorHeap(EDescriptorHeapType heapType, UINT count) = 0;
 		virtual void WaitFence(UINT64 fence) = 0;

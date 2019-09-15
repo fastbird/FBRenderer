@@ -1,7 +1,7 @@
 // FBRendererTest.cpp : Defines the entry point for the application.
 //
 
-#include "framework.h"
+#include "pch.h"
 #include "FBRendererTest.h"
 #include "GeometryGenerator.h"
 #include "../FBRenderer.h"
@@ -9,14 +9,8 @@
 #include "../Colors.h"
 #include "../../FBCommon/glm.h"
 #include "../../FBCommon/AABB.h"
+#include "FrameResource.h"
 
-#include <chrono>
-#include <thread>
-#include <array>
-#include <unordered_map>
-
-#include <iostream>
-#include <fstream>
 #define MAX_LOADSTRING 100
 
 struct Vertex
@@ -251,6 +245,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    Width = r.right - r.left;
    Height = r.bottom - r.top;
    gRenderer = fb::InitRenderer(fb::RendererType::D3D12, (void*)WindowHandle);
+   BuildFrameResources();
 
    gRenderer->ResetCommandList(nullptr, 0);
    std::cout << "Reset Command List" << std::endl;
@@ -463,7 +458,7 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 //	return gBoxMesh->IsValid();
 //}
 
-void UpdateObjectCBs(float dt, fb::FFrameResource& curFR)
+void UpdateObjectCBs(float dt, FFrameResource& curFR)
 {
 	UINT objCount = (UINT)OpaqueRitems.size();
 	for (UINT i = 0; i < objCount; ++i)
@@ -483,7 +478,7 @@ void UpdateObjectCBs(float dt, fb::FFrameResource& curFR)
 
 void Update(float dt)
 {
-	auto& curFR = gRenderer->GetFrameResource_WaitAvailable(CurrentFrameResourceIndex);
+	auto& curFR = GetFrameResource_WaitAvailable(CurrentFrameResourceIndex);
 
 	// Convert Spherical to Cartesian coordinates.
 	float x = Radius * sinf(Phi) * cosf(Theta);
@@ -835,7 +830,7 @@ void BuildConstantBuffers()
 	// Need a CBV descriptor for each object for each frame resource.
 	for (int frameIndex = 0; frameIndex < numSwapchains; ++frameIndex)
 	{
-		auto& frameResource = gRenderer->GetFrameResource(frameIndex);
+		auto& frameResource = GetFrameResource(frameIndex);
 		frameResource.CBPerObject = gRenderer->CreateUploadBuffer(sizeof(ObjectConstants), objCount, true, fb::EDescriptorHeapType::Default);
 		for (UINT i = 0; i < objCount; ++i)
 		{
@@ -847,7 +842,7 @@ void BuildConstantBuffers()
 	auto numFrameResources = gRenderer->GetNumSwapchainBuffers();
 	for (int frameIndex = 0; frameIndex < numFrameResources; ++frameIndex)
 	{
-		auto& curFR = gRenderer->GetFrameResource(frameIndex);
+		auto& curFR = GetFrameResource(frameIndex);
 		curFR.CBPerFrame = gRenderer->CreateUploadBuffer(sizeof(PassConstants), 1, true, fb::EDescriptorHeapType::Default);
 		curFR.CBPerFrame->CreateCBV(0, fb::EDescriptorHeapType::Default, PassCbvOffset + frameIndex);
 	}
@@ -856,7 +851,7 @@ void BuildConstantBuffers()
 void DrawRenderItems()
 {
 	fb::EPrimitiveTopology LastPrimitiveTopology = fb::EPrimitiveTopology::UNDEFINED;
-	auto& curFR = gRenderer->GetFrameResource(CurrentFrameResourceIndex);
+	auto& curFR = GetFrameResource(CurrentFrameResourceIndex);
 	// For each render item...
 	for (size_t i = 0; i < OpaqueRitems.size(); ++i)
 	{
@@ -878,7 +873,7 @@ void DrawRenderItems()
 
 void Draw(float dt)
 {
-	auto& curFR = gRenderer->GetFrameResource(CurrentFrameResourceIndex);
+	auto& curFR = GetFrameResource(CurrentFrameResourceIndex);
 	auto cmdListAlloc = curFR.CommandAllocator;
 	cmdListAlloc->Reset();
 

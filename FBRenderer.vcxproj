@@ -142,12 +142,12 @@
     <ClInclude Include="DataFormat.h" />
     <ClInclude Include="EDescriptorHeapType.h" />
     <ClInclude Include="FBRenderer.h" />
-    <ClInclude Include="FrameResource.h" />
     <ClInclude Include="ICommandAllocator.h" />
     <ClInclude Include="IIndexBuffer.h" />
     <ClInclude Include="InputElementDesc.h" />
     <ClInclude Include="IRenderer.h" />
     <ClInclude Include="IShader.h" />
+    <ClInclude Include="IUploadBuffer.h" />
     <ClInclude Include="IVertexBuffer.h" />
     <ClInclude Include="PrimitiveTopology.h" />
     <ClInclude Include="PSO.h" />

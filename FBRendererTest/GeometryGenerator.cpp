@@ -2,8 +2,8 @@
 // GeometryGenerator.cpp by Frank Luna (C) 2011 All Rights Reserved.
 //***************************************************************************************
 
+#include "pch.h"
 #include "GeometryGenerator.h"
-#include <algorithm>
 
 GeometryGenerator::MeshData GeometryGenerator::CreateBox(float width, float height, float depth, uint32 numSubdivisions)
 {

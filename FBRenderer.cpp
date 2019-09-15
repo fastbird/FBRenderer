@@ -31,7 +31,6 @@ IRenderer* fb::InitRenderer(RendererType type, void* windowHandle)
 			return nullptr;
 		}
 		renderer->Initialize(windowHandle);
-		renderer->BuildFrameResources();
 		return renderer;
 
 	}
