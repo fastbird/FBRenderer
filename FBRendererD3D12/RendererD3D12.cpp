@@ -256,7 +256,7 @@ IIndexBuffer* RendererD3D12::CreateIndexBuffer(const void* indexData, UINT size,
 	return ib;
 }
 
-IUploadBuffer* RendererD3D12::CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer, EDescriptorHeapType heapType)
+IUploadBuffer* RendererD3D12::CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer)
 {
 	auto ub = new UploadBuffer();
 	if (!ub->Initialize(elementSize, constantBuffer ? 256 : 0, count))
@@ -482,6 +482,13 @@ void RendererD3D12::BindDescriptorHeap(EDescriptorHeapType type)
 		break;
 	}
 	}
+}
+
+void RendererD3D12::SetGraphicsRootConstantBufferView(int rootParamIndex, fb::IUploadBufferIPtr constantBuffer, int offset)
+{
+	auto gpuAddress = ((UploadBuffer*)constantBuffer.get())->Resource->GetGPUVirtualAddress();
+	gpuAddress += offset;
+	CommandList->SetGraphicsRootConstantBufferView(rootParamIndex, gpuAddress);
 }
 
 void RendererD3D12::SetGraphicsRootDescriptorTable(int rootParamIndex, fb::EDescriptorHeapType heapType, int index)

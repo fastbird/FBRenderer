@@ -9,14 +9,16 @@
 #include "../Colors.h"
 #include "../../FBCommon/glm.h"
 #include "../../FBCommon/AABB.h"
+#include "../../FBCommon/Utility.h"
 #include "FrameResource.h"
+#include "Waves.h"
 
 #define MAX_LOADSTRING 100
 
 struct Vertex
 {
-	float X, Y, Z;
-	float R, G, B, A;
+	glm::vec3 Pos;
+	glm::vec4 Color;
 };
 
 struct SubmeshGeometry
@@ -85,7 +87,14 @@ fb::PSOID SimpleBoxPSOWireframe;
 UINT CurrentFrameResourceIndex = 0;
 std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> Geometries;
 std::vector<std::unique_ptr<fb::RenderItem>> AllRitems;
-std::vector<fb::RenderItem*> OpaqueRitems;
+enum class ERenderLayer : int
+{
+	Opaque = 0,
+	Count
+};
+
+std::vector<fb::RenderItem*> RenderItemLayers[(int)ERenderLayer::Count];
+
 UINT PassCbvOffset = 0;
 std::unordered_map<std::string, fb::IShaderIPtr> Shaders;
 fb::IRootSignatureIPtr SimpleBoxRootSig;
@@ -98,6 +107,9 @@ WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 UINT Width = 200;
 UINT Height = 100;
+Waves* gWaves = nullptr;
+
+fb::RenderItem* gWavesRitem = nullptr;
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -113,12 +125,15 @@ void OnMouseUp(WPARAM btnState, int x, int y);
 
 void BuildShadersAndInputLayout();
 
+void BuildLandGeometry();
+
+void BuildWavesGeometryBuffers();
+
 void BuildPSO();
 
 void BuildShapeGeometry();
 void BuildRenderItems();
-void BuildDescriptorHeap();
-void BuildConstantBuffers();
+void BuildWaves();
 void Draw(float dt);
 
 
@@ -182,6 +197,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	}
 
 	//delete gBoxMesh; gBoxMesh = nullptr;
+	delete gWaves; gWaves = nullptr;
 	delete PerPassCBs; PerPassCBs = nullptr;
 	fb::FinalizeRenderer(gRenderer);
 	std::cout << "Renderer Finalized!" << std::endl;
@@ -258,17 +274,15 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    std::cout << "Build Render Items" << std::endl;
 
-   BuildDescriptorHeap();
+   BuildWaves();
 
-   std::cout << "Build Descriptor Heap" << std::endl;
-
-   BuildConstantBuffers();
-
-   std::cout << "Build Constant Buffers" << std::endl;
+   std::cout << "Build Waves." << std::endl;
 
    BuildShadersAndInputLayout();
 
-   std::cout << "Build Shaders And Input Layout." << std::endl;
+   BuildLandGeometry();
+
+   BuildWavesGeometryBuffers();
    
    SimpleBoxRootSig = gRenderer->CreateRootSignature("DTable,1,0");
    MultiDrawRootSig = gRenderer->CreateRootSignature("DTable,1,0;DTable,1,1;");
@@ -460,21 +474,60 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 
 void UpdateObjectCBs(float dt, FFrameResource& curFR)
 {
-	UINT objCount = (UINT)OpaqueRitems.size();
-	for (UINT i = 0; i < objCount; ++i)
+	auto currObjectCB = GetFrameResource(CurrentFrameResourceIndex).CBPerObject;
+	for (auto& e : AllRitems)
 	{
-		auto& e = OpaqueRitems[i];
+		// Only update the cbuffer data if the constants have changed.  
+		// This needs to be tracked per frame resource.
 		if (e->NumFramesDirty > 0)
 		{
-			ObjectConstants objConstants = { glm::transpose(e->World) };
-			curFR.CBPerObject->CopyData(e->ConstantBufferIndex, &objConstants);
+			ObjectConstants objConstants;
+			objConstants.World = glm::transpose(e->World);
+
+			currObjectCB->CopyData(e->ConstantBufferIndex, &objConstants);
 
 			// Next FrameResource need to be updated too.
 			e->NumFramesDirty--;
 		}
-	}
+	}	
 }
 
+void UpdateWaves(float dt)
+{
+	static float totalTime = 0;
+	totalTime += dt;
+	// Every quarter second, generate a random wave.
+	static float t_base = 0.0f;
+	if ((totalTime - t_base) >= 0.25f)
+	{
+		t_base += 0.25f;
+
+		int i = fb::Rand(4, gWaves->RowCount() - 5);
+		int j = fb::Rand(4, gWaves->ColumnCount() - 5);
+
+		float r = fb::RandF(0.2f, 0.5f);
+
+		gWaves->Disturb(i, j, r);
+	}
+
+	// Update the wave simulation.
+	gWaves->Update(dt);
+	auto& curFR = GetFrameResource(CurrentFrameResourceIndex);
+	// Update the wave vertex buffer with the new solution.
+	auto currWavesVB = curFR.WavesVB.get();
+	for (int i = 0; i < gWaves->VertexCount(); ++i)
+	{
+		Vertex v;
+
+		v.Pos = gWaves->Position(i);
+		memcpy(&v.Color.x, fb::Colors::Blue, sizeof(glm::vec4));
+
+		currWavesVB->CopyData(i, &v);
+	}
+
+	// Set the dynamic VB of the wave renderitem to the current frame VB.
+	gWavesRitem->VB->FromUploadBuffer(currWavesVB);
+}
 
 void Update(float dt)
 {
@@ -495,6 +548,7 @@ void Update(float dt)
 	curFR.CBPerFrame->CopyData(0, &pc);
 
 	UpdateObjectCBs(dt, curFR);
+	UpdateWaves(dt);
 }
 
 void OnMouseMove(WPARAM btnState, int x, int y)
@@ -558,6 +612,123 @@ void BuildShadersAndInputLayout()
 		{ "POSITION", 0, fb::EDataFormat::R32G32B32_FLOAT, 0, 0, fb::EInputClassification::PerVertexData, 0 },
 		{ "COLOR", 0, fb::EDataFormat::R32G32B32A32_FLOAT, 0, 12, fb::EInputClassification::PerVertexData, 0 },
 	};
+}
+
+float GetHillsHeight(float x, float z)
+{
+	return 0.3f * (z * sinf(0.1f * x) + x * cosf(0.1f * z));
+}
+
+void BuildLandGeometry()
+{
+	GeometryGenerator geoGen;
+	GeometryGenerator::MeshData grid = geoGen.CreateGrid(160.0f, 160.0f, 50, 50);
+
+	//
+	// Extract the vertex elements we are interested and apply the height function to
+	// each vertex.  In addition, color the vertices based on their height so we have
+	// sandy looking beaches, grassy low hills, and snow mountain peaks.
+	//
+
+	std::vector<Vertex> vertices(grid.Vertices.size());
+	for (size_t i = 0; i < grid.Vertices.size(); ++i)
+	{
+		auto& p = grid.Vertices[i].Position;
+		vertices[i].Pos = p;
+		vertices[i].Pos.y = GetHillsHeight(p.x, p.z);
+
+		// Color the vertex based on its height.
+		if (vertices[i].Pos.y < -10.0f)
+		{
+			// Sandy beach color.
+			vertices[i].Color = glm::vec4(1.0f, 0.96f, 0.62f, 1.0f);
+		}
+		else if (vertices[i].Pos.y < 5.0f)
+		{
+			// Light yellow-green.
+			vertices[i].Color = glm::vec4(0.48f, 0.77f, 0.46f, 1.0f);
+		}
+		else if (vertices[i].Pos.y < 12.0f)
+		{
+			// Dark yellow-green.
+			vertices[i].Color = glm::vec4(0.1f, 0.48f, 0.19f, 1.0f);
+		}
+		else if (vertices[i].Pos.y < 20.0f)
+		{
+			// Dark brown.
+			vertices[i].Color = glm::vec4(0.45f, 0.39f, 0.34f, 1.0f);
+		}
+		else
+		{
+			// White snow.
+			vertices[i].Color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+		}
+	}
+
+	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+
+	std::vector<std::uint16_t> indices = grid.GetIndices16();
+	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+	auto geo = std::make_unique<MeshGeometry>();
+	geo->Name = "landGeo";
+
+	geo->VertexBuffer = gRenderer->CreateVertexBuffer(vertices.data(), vbByteSize, sizeof(Vertex), false);
+	geo->IndexBuffer = gRenderer->CreateIndexBuffer(indices.data(), ibByteSize, fb::EDataFormat::R16_UINT, false);
+
+	SubmeshGeometry submesh;
+	submesh.IndexCount = (UINT)indices.size();
+	submesh.StartIndexLocation = 0;
+	submesh.BaseVertexLocation = 0;
+
+	geo->DrawArgs["grid"] = submesh;
+
+	Geometries["landGeo"] = std::move(geo);
+}
+
+void BuildWavesGeometryBuffers()
+{
+	std::vector<std::uint16_t> indices(3 * gWaves->TriangleCount()); // 3 indices per face
+	assert(gWaves->VertexCount() < 0x0000ffff);
+
+	// Iterate over each quad.
+	int m = gWaves->RowCount();
+	int n = gWaves->ColumnCount();
+	int k = 0;
+	for (int i = 0; i < m - 1; ++i)
+	{
+		for (int j = 0; j < n - 1; ++j)
+		{
+			indices[k] = i * n + j;
+			indices[k + 1] = i * n + j + 1;
+			indices[k + 2] = (i + 1) * n + j;
+
+			indices[k + 3] = (i + 1) * n + j;
+			indices[k + 4] = i * n + j + 1;
+			indices[k + 5] = (i + 1) * n + j + 1;
+
+			k += 6; // next quad
+		}
+	}
+
+	UINT vbByteSize = gWaves->VertexCount() * sizeof(Vertex);
+	UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+	auto geo = std::make_unique<MeshGeometry>();
+	geo->Name = "waterGeo";
+
+	// Set dynamically.
+	geo->VertexBuffer = gRenderer->CreateVertexBuffer(nullptr, 0, 0, false);
+	geo->IndexBuffer = gRenderer->CreateIndexBuffer(indices.data(), ibByteSize, fb::EDataFormat::R16_UINT, false);
+
+	SubmeshGeometry submesh;
+	submesh.IndexCount = (UINT)indices.size();
+	submesh.StartIndexLocation = 0;
+	submesh.BaseVertexLocation = 0;
+
+	geo->DrawArgs["grid"] = submesh;
+
+	Geometries["waterGeo"] = std::move(geo);
 }
 
 void BuildPSO()
@@ -654,47 +825,26 @@ void BuildShapeGeometry()
 	UINT k = 0;
 	for (size_t i = 0; i < box.Vertices.size(); ++i, ++k)
 	{
-		vertices[k].X = box.Vertices[i].Position.x;
-		vertices[k].Y = box.Vertices[i].Position.y;
-		vertices[k].Z = box.Vertices[i].Position.z;
-		vertices[k].R = fb::Colors::DarkGreen[0];
-		vertices[k].G = fb::Colors::DarkGreen[1];
-		vertices[k].B = fb::Colors::DarkGreen[2];
-		vertices[k].A = fb::Colors::DarkGreen[3];
+		vertices[k].Pos = box.Vertices[i].Position;
+		memcpy(&vertices[k].Color.x, fb::Colors::DarkGreen, sizeof(glm::vec4));
 	}
 
 	for (size_t i = 0; i < grid.Vertices.size(); ++i, ++k)
 	{
-		vertices[k].X = grid.Vertices[i].Position.x;
-		vertices[k].Y = grid.Vertices[i].Position.y;
-		vertices[k].Z = grid.Vertices[i].Position.z;
-		vertices[k].R = fb::Colors::ForestGreen[0];
-		vertices[k].G = fb::Colors::ForestGreen[1];
-		vertices[k].B = fb::Colors::ForestGreen[2];
-		vertices[k].A = fb::Colors::ForestGreen[3];
+		vertices[k].Pos = grid.Vertices[i].Position;
+		memcpy(&vertices[k].Color.x, fb::Colors::ForestGreen, sizeof(glm::vec4));
 	}
 
 	for (size_t i = 0; i < sphere.Vertices.size(); ++i, ++k)
 	{
-		vertices[k].X = sphere.Vertices[i].Position.x;
-		vertices[k].Y = sphere.Vertices[i].Position.y;
-		vertices[k].Z = sphere.Vertices[i].Position.z;
-		vertices[k].R = fb::Colors::Crimson[0];
-		vertices[k].G = fb::Colors::Crimson[1];
-		vertices[k].B = fb::Colors::Crimson[2];
-		vertices[k].A = fb::Colors::Crimson[3];
+		vertices[k].Pos = sphere.Vertices[i].Position;
+		memcpy(&vertices[k].Color.x, fb::Colors::Crimson, sizeof(glm::vec4));
 	}
 
 	for (size_t i = 0; i < cylinder.Vertices.size(); ++i, ++k)
 	{
-		vertices[k].X = cylinder.Vertices[i].Position.x;
-		vertices[k].Y = cylinder.Vertices[i].Position.y;
-		vertices[k].Z = cylinder.Vertices[i].Position.z;
-
-		vertices[k].R = fb::Colors::SteelBlue[0];
-		vertices[k].G = fb::Colors::SteelBlue[1];
-		vertices[k].B = fb::Colors::SteelBlue[2];
-		vertices[k].A = fb::Colors::SteelBlue[3];
+		vertices[k].Pos = cylinder.Vertices[i].Position;
+		memcpy(&vertices[k].Color.x, fb::Colors::SteelBlue, sizeof(glm::vec4));
 	}
 
 	std::vector<std::uint16_t> indices;
@@ -724,127 +874,44 @@ void BuildShapeGeometry()
 
 void BuildRenderItems()
 {
-	auto boxRitem = std::make_unique<fb::RenderItem>();
-	boxRitem->World = glm::translate(glm::vec3{0.0f, 0.5f, 0.0f}) * glm::scale(glm::vec3{ 2.0f, 2.0f, 2.0f });
-	boxRitem->ConstantBufferIndex = 0;
-	auto& geo = Geometries["shapeGeo"];
-	boxRitem->VB = geo->VertexBuffer;
-	boxRitem->IB = geo->IndexBuffer;
-	boxRitem->PrimitiveTopology = fb::EPrimitiveTopology::TRIANGLELIST;
-	boxRitem->IndexCount = geo->DrawArgs["box"].IndexCount;
-	boxRitem->StartIndexLocation = geo->DrawArgs["box"].StartIndexLocation;
-	boxRitem->BaseVertexLocation = geo->DrawArgs["box"].BaseVertexLocation;
-	AllRitems.push_back(std::move(boxRitem));
+	auto wavesRitem = std::make_unique<fb::RenderItem>();
+	wavesRitem->ConstantBufferIndex = 0;
+	auto waterGeo = Geometries["waterGeo"].get();
+	wavesRitem->VB = waterGeo->VertexBuffer;
+	wavesRitem->IB = waterGeo->IndexBuffer;
+	wavesRitem->PrimitiveTopology =  fb::EPrimitiveTopology::TRIANGLELIST;
+	wavesRitem->IndexCount = waterGeo->DrawArgs["grid"].IndexCount;
+	wavesRitem->StartIndexLocation = waterGeo->DrawArgs["grid"].StartIndexLocation;
+	wavesRitem->BaseVertexLocation = waterGeo->DrawArgs["grid"].BaseVertexLocation;
+
+	gWavesRitem = wavesRitem.get();
+
+	RenderItemLayers[(int)ERenderLayer::Opaque].push_back(wavesRitem.get());
 
 	auto gridRitem = std::make_unique<fb::RenderItem>();
-	gridRitem->World = glm::mat4(1.f);
 	gridRitem->ConstantBufferIndex = 1;
-	gridRitem->VB = geo->VertexBuffer;
-	gridRitem->IB = geo->IndexBuffer;
+	auto landGeo = Geometries["landGeo"].get();
+	gridRitem->VB = landGeo->VertexBuffer;
+	gridRitem->IB = landGeo->IndexBuffer;
 	gridRitem->PrimitiveTopology = fb::EPrimitiveTopology::TRIANGLELIST;
-	gridRitem->IndexCount = geo->DrawArgs["grid"].IndexCount;
-	gridRitem->StartIndexLocation = geo->DrawArgs["grid"].StartIndexLocation;
-	gridRitem->BaseVertexLocation = geo->DrawArgs["grid"].BaseVertexLocation;
+	gridRitem->IndexCount = landGeo->DrawArgs["grid"].IndexCount;
+	gridRitem->StartIndexLocation = landGeo->DrawArgs["grid"].StartIndexLocation;
+	gridRitem->BaseVertexLocation = landGeo->DrawArgs["grid"].BaseVertexLocation;
+
+	RenderItemLayers[(int)ERenderLayer::Opaque].push_back(gridRitem.get());
+
+	AllRitems.push_back(std::move(wavesRitem));
 	AllRitems.push_back(std::move(gridRitem));
-
-	UINT objCBIndex = 2;
-	for (int i = 0; i < 5; ++i)
-	{
-		auto leftCylRitem = std::make_unique<fb::RenderItem>();
-		auto rightCylRitem = std::make_unique<fb::RenderItem>();
-		auto leftSphereRitem = std::make_unique<fb::RenderItem>();
-		auto rightSphereRitem = std::make_unique<fb::RenderItem>();
-
-		glm::mat4 leftCylWorld = glm::translate(glm::vec3(-5.0f, 1.5f, -10.0f + i * 5.0f));
-		glm::mat4 rightCylWorld = glm::translate(glm::vec3(+5.0f, 1.5f, -10.0f + i * 5.0f));
-
-		glm::mat4 leftSphereWorld = glm::translate(glm::vec3(-5.0f, 3.5f, -10.0f + i * 5.0f));
-		glm::mat4 rightSphereWorld = glm::translate(glm::vec3(+5.0f, 3.5f, -10.0f + i * 5.0f));
-
-		leftCylRitem->World = leftCylWorld;
-		leftCylRitem->ConstantBufferIndex = objCBIndex++;
-		leftCylRitem->PrimitiveTopology = fb::EPrimitiveTopology::TRIANGLELIST;
-		leftCylRitem->IndexCount = geo->DrawArgs["cylinder"].IndexCount;
-		leftCylRitem->StartIndexLocation = geo->DrawArgs["cylinder"].StartIndexLocation;
-		leftCylRitem->BaseVertexLocation = geo->DrawArgs["cylinder"].BaseVertexLocation;
-		leftCylRitem->VB = geo->VertexBuffer;
-		leftCylRitem->IB = geo->IndexBuffer;
-
-		rightCylRitem->World = rightCylWorld;
-		rightCylRitem->ConstantBufferIndex = objCBIndex++;
-		rightCylRitem->PrimitiveTopology = fb::EPrimitiveTopology::TRIANGLELIST;
-		rightCylRitem->IndexCount = geo->DrawArgs["cylinder"].IndexCount;
-		rightCylRitem->StartIndexLocation = geo->DrawArgs["cylinder"].StartIndexLocation;
-		rightCylRitem->BaseVertexLocation = geo->DrawArgs["cylinder"].BaseVertexLocation;
-		rightCylRitem->VB = geo->VertexBuffer;
-		rightCylRitem->IB = geo->IndexBuffer;
-
-		leftSphereRitem->World = leftSphereWorld;
-		leftSphereRitem->ConstantBufferIndex = objCBIndex++;
-		leftSphereRitem->PrimitiveTopology = fb::EPrimitiveTopology::TRIANGLELIST;
-		leftSphereRitem->IndexCount = geo->DrawArgs["sphere"].IndexCount;
-		leftSphereRitem->StartIndexLocation = geo->DrawArgs["sphere"].StartIndexLocation;
-		leftSphereRitem->BaseVertexLocation = geo->DrawArgs["sphere"].BaseVertexLocation;
-		leftSphereRitem->VB = geo->VertexBuffer;
-		leftSphereRitem->IB = geo->IndexBuffer;
-
-		rightSphereRitem->World = rightSphereWorld;
-		rightSphereRitem->ConstantBufferIndex = objCBIndex++;
-		rightSphereRitem->PrimitiveTopology = fb::EPrimitiveTopology::TRIANGLELIST;
-		rightSphereRitem->IndexCount = geo->DrawArgs["sphere"].IndexCount;
-		rightSphereRitem->StartIndexLocation = geo->DrawArgs["sphere"].StartIndexLocation;
-		rightSphereRitem->BaseVertexLocation = geo->DrawArgs["sphere"].BaseVertexLocation;
-		rightSphereRitem->VB = geo->VertexBuffer;
-		rightSphereRitem->IB = geo->IndexBuffer;
-
-		AllRitems.push_back(std::move(leftCylRitem));
-		AllRitems.push_back(std::move(rightCylRitem));
-		AllRitems.push_back(std::move(leftSphereRitem));
-		AllRitems.push_back(std::move(rightSphereRitem));
-	}
-
-	// All the render items are opaque.
-	for (auto& e : AllRitems)
-		OpaqueRitems.push_back(e.get());
 }
 
-void BuildDescriptorHeap()
+void BuildWaves()
 {
-	UINT objCount = (UINT)OpaqueRitems.size();
-
-	auto numFrameResources = gRenderer->GetNumSwapchainBuffers();
-	// Need a CBV descriptor for each object for each frame resource,
-	// +1 for the perPass CBV for each frame resource.
-	UINT numDescriptors = (objCount + 1) * numFrameResources;
-
-	// Save an offset to the start of the pass CBVs.  These are the last 3 descriptors.
-	PassCbvOffset = objCount * numFrameResources;
-
-	gRenderer->PrepareDescriptorHeap(fb::EDescriptorHeapType::Default, numDescriptors);
-}
-
-void BuildConstantBuffers()
-{
-	UINT objCount = (UINT)OpaqueRitems.size();
-	auto numSwapchains = gRenderer->GetNumSwapchainBuffers();
-	// Need a CBV descriptor for each object for each frame resource.
-	for (int frameIndex = 0; frameIndex < numSwapchains; ++frameIndex)
-	{
-		auto& frameResource = GetFrameResource(frameIndex);
-		frameResource.CBPerObject = gRenderer->CreateUploadBuffer(sizeof(ObjectConstants), objCount, true, fb::EDescriptorHeapType::Default);
-		for (UINT i = 0; i < objCount; ++i)
-		{
-			int heapIndex = frameIndex * objCount + i;
-			frameResource.CBPerObject->CreateCBV(i, fb::EDescriptorHeapType::Default, heapIndex);
-		}
-	}
-
+	gWaves = new Waves(128, 128, 1.0f, 0.03f, 4.0f, 0.2f);
 	auto numFrameResources = gRenderer->GetNumSwapchainBuffers();
 	for (int frameIndex = 0; frameIndex < numFrameResources; ++frameIndex)
 	{
 		auto& curFR = GetFrameResource(frameIndex);
-		curFR.CBPerFrame = gRenderer->CreateUploadBuffer(sizeof(PassConstants), 1, true, fb::EDescriptorHeapType::Default);
-		curFR.CBPerFrame->CreateCBV(0, fb::EDescriptorHeapType::Default, PassCbvOffset + frameIndex);
+		curFR.WavesVB = gRenderer->CreateUploadBuffer(sizeof(Vertex), gWaves->VertexCount(), false);
 	}
 }
 
@@ -852,10 +919,12 @@ void DrawRenderItems()
 {
 	fb::EPrimitiveTopology LastPrimitiveTopology = fb::EPrimitiveTopology::UNDEFINED;
 	auto& curFR = GetFrameResource(CurrentFrameResourceIndex);
+	auto& opaqueRenderItems = RenderItemLayers[(int)ERenderLayer::Opaque];
+	auto cvStride = gRenderer->CalcConstantBufferByteSize(sizeof(ObjectConstants));
 	// For each render item...
-	for (size_t i = 0; i < OpaqueRitems.size(); ++i)
+	for (size_t i = 0; i < opaqueRenderItems.size(); ++i)
 	{
-		auto ri = OpaqueRitems[i];
+		auto ri = opaqueRenderItems[i];
 
 		ri->VB->Bind(0);
 		ri->IB->Bind();
@@ -865,8 +934,9 @@ void DrawRenderItems()
 		}
 
 		// Offset to the CBV in the descriptor heap for this object and for this frame resource.
-		UINT cbvIndex = CurrentFrameResourceIndex * (UINT)OpaqueRitems.size() + ri->ConstantBufferIndex;
-		gRenderer->SetGraphicsRootDescriptorTable(0, fb::EDescriptorHeapType::Default, cbvIndex);
+		gRenderer->SetGraphicsRootConstantBufferView(0, curFR.CBPerObject, cvStride *ri->ConstantBufferIndex);
+		//UINT cbvIndex = (UINT)opaqueRenderItems.size() + ri->ConstantBufferIndex;
+		//gRenderer->SetGraphicsRootDescriptorTable(0, fb::EDescriptorHeapType::Default, cbvIndex);
 		gRenderer->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0 );
 	}
 }

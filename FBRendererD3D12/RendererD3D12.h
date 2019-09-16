@@ -49,7 +49,7 @@ namespace fb
 		virtual ICommandAllocator* CreateCommandAllocator() override;
 		virtual IVertexBuffer* CreateVertexBuffer(const void* vertexData, UINT size, UINT stride, bool keepData) override;
 		virtual IIndexBuffer* CreateIndexBuffer(const void* indexData, UINT size, EDataFormat format, bool keepData) override;
-		virtual IUploadBuffer* CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer, EDescriptorHeapType heapType) override;
+		virtual IUploadBuffer* CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer) override;
 		virtual PSOID CreateGraphicsPipelineState(const FPSODesc& psoDesc) override;
 		virtual void DestroyGraphicsPipelineState(PSOID psoid) override;
 		virtual IShader* CompileShader(
@@ -68,6 +68,7 @@ namespace fb
 		virtual void FlushCommandQueue() override;
 
 		virtual void BindDescriptorHeap(EDescriptorHeapType type) override;
+		virtual void SetGraphicsRootConstantBufferView(int rootParamIndex, fb::IUploadBufferIPtr constantBuffer, int offset) override;
 		virtual void SetGraphicsRootDescriptorTable(int rootParamIndex, fb::EDescriptorHeapType heapType, int index) override;
 		virtual void SetPrimitiveTopology(const fb::EPrimitiveTopology topology) override;
 		virtual void DrawIndexedInstanced(UINT IndexCountPerInstance,

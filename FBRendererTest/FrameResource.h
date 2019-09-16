@@ -8,6 +8,7 @@ struct FFrameResource
 	fb::ICommandAllocatorIPtr CommandAllocator;
 	fb::IUploadBufferIPtr CBPerFrame;
 	fb::IUploadBufferIPtr CBPerObject;
+	fb::IUploadBufferIPtr WavesVB;
 	fb::UINT64 Fence = 0;
 };
 extern std::vector<FFrameResource> FrameResources;

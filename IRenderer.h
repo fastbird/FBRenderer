@@ -39,7 +39,7 @@ namespace fb
 		virtual ICommandAllocator* CreateCommandAllocator() = 0;
 		virtual IVertexBuffer* CreateVertexBuffer(const void* vertexData, UINT size, UINT stride, bool keepData) = 0;
 		virtual IIndexBuffer* CreateIndexBuffer(const void* indexData, UINT size, EDataFormat format, bool keepData) = 0;
-		virtual IUploadBuffer* CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer, EDescriptorHeapType heapType) = 0;
+		virtual IUploadBuffer* CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer) = 0;
 		virtual PSOID CreateGraphicsPipelineState(const FPSODesc& psoDesc) = 0;
 		virtual void DestroyGraphicsPipelineState(PSOID psoid) = 0;
 		virtual IShader* CompileShader(const char* filepath, FShaderMacro* macros, int numMacros, EShaderType shaderType, const char* entryFunctionName) = 0;
@@ -58,6 +58,7 @@ namespace fb
 		virtual void PresentAndSwapBuffer() = 0;
 		virtual void FlushCommandQueue() = 0;
 		virtual void BindDescriptorHeap(EDescriptorHeapType type) = 0;
+		virtual void SetGraphicsRootConstantBufferView(int rootParamIndex, fb::IUploadBufferIPtr constantBuffer, int offset) = 0;
 		virtual void SetGraphicsRootDescriptorTable(int rootParamIndex, fb::EDescriptorHeapType heapType, int index) = 0;
 		virtual void SetPrimitiveTopology(const fb::EPrimitiveTopology topology) = 0;
 		virtual void DrawIndexedInstanced(UINT IndexCountPerInstance,
