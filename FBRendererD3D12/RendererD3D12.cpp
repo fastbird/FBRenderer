@@ -259,7 +259,7 @@ IIndexBuffer* RendererD3D12::CreateIndexBuffer(const void* indexData, UINT size,
 IUploadBuffer* RendererD3D12::CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer)
 {
 	auto ub = new UploadBuffer();
-	if (!ub->Initialize(elementSize, constantBuffer ? 256 : 0, count))
+	if (!ub->Initialize(elementSize, constantBuffer ? 256 : 1, count))
 	{
 		delete ub;
 		return nullptr;
@@ -355,11 +355,9 @@ IRootSignature* RendererD3D12::CreateRootSignature(const char* definition)
 	for (const auto& param : parameters) 
 	{
 		auto paramItem = fb::Split(param, ",");
-		if (paramItem.size() != 3)
-			continue;
-
 		if (paramItem[0] == std::string_view(RootDescriptorTableName))
 		{
+			assert(paramItem.size() == 3);
 			int numDescriptors = atoi(std::string(paramItem[1]).c_str());
 			int gpuIndex = atoi(std::string(paramItem[2]).c_str());
 			descriptorRanges.push_back(new CD3DX12_DESCRIPTOR_RANGE);
@@ -367,9 +365,35 @@ IRootSignature* RendererD3D12::CreateRootSignature(const char* definition)
 			descriptorRange->Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, numDescriptors, gpuIndex);
 			slotRootParameter[cpuIndex].InitAsDescriptorTable(numDescriptors, descriptorRange);
 		}
-		else if (paramItem[0] == std::string_view(RootDescriptorName))
+		else if (paramItem[0] == std::string_view(RootDescriptorCBVName))
 		{
-			assert(0 && "Not implemented.");
+			int gpuIndex = atoi(std::string(paramItem[1]).c_str());
+			int registerSpace = 0;
+			if (paramItem.size() > 2)
+				registerSpace = atoi(std::string(paramItem[1]).c_str());
+
+			// TODO : shader visibility
+			slotRootParameter[cpuIndex].InitAsConstantBufferView(gpuIndex, registerSpace);
+		}
+		else if (paramItem[0] == std::string_view(RootDescriptorSRVName))
+		{
+			int gpuIndex = atoi(std::string(paramItem[1]).c_str());
+			int registerSpace = 0;
+			if (paramItem.size() > 2)
+				registerSpace = atoi(std::string(paramItem[1]).c_str());
+
+			// TODO : shader visibility
+			slotRootParameter[cpuIndex].InitAsShaderResourceView(gpuIndex, registerSpace);
+		}
+		else if (paramItem[0] == std::string_view(RootDescriptorUAVName))
+		{
+			int gpuIndex = atoi(std::string(paramItem[1]).c_str());
+			int registerSpace = 0;
+			if (paramItem.size() > 2)
+				registerSpace = atoi(std::string(paramItem[1]).c_str());
+
+			// TODO : shader visibility
+			slotRootParameter[cpuIndex].InitAsUnorderedAccessView(gpuIndex, registerSpace);
 		}
 		else if (paramItem[0] == std::string_view(RootConstantName))
 		{
@@ -477,6 +501,8 @@ void RendererD3D12::BindDescriptorHeap(EDescriptorHeapType type)
 	{
 	case EDescriptorHeapType::Default:
 	{
+		if (!DefaultDescriptorHeap)
+			return;
 		ID3D12DescriptorHeap* descriptorHeaps[] = { DefaultDescriptorHeap.Get() };
 		CommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 		break;

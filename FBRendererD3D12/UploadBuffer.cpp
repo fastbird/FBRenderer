@@ -9,7 +9,7 @@ using namespace fb;
 bool UploadBuffer::Initialize(UINT elementSize, UINT align, UINT count)
 {
 	ElementSizeBeforeAligned = elementSize;
-	if (align != 0 || align != 1) {
+	if (align != 1 && align != 0) {
 		elementSize = fb::CalcAligned(elementSize, align);
 	}
 	ElementSize = elementSize;

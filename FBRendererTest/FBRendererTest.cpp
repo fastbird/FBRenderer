@@ -50,29 +50,6 @@ struct MeshGeometry
 	}
 };
 
-struct ObjectConstants
-{
-	glm::mat4 World = glm::mat4(1.0f);
-};
-
-struct PassConstants
-{
-	glm::mat4 View = glm::mat4(1.0f);
-	glm::mat4 InvView = glm::mat4(1.0f);
-	glm::mat4 Proj = glm::mat4(1.0f);
-	glm::mat4 InvProj = glm::mat4(1.0f);
-	glm::mat4 ViewProj = glm::mat4(1.0f);
-	glm::mat4 InvViewProj = glm::mat4(1.0f);
-	glm::vec3 EyePosW = { 0.0f, 0.0f, 0.0f };
-	float cbPerObjectPad1 = 0.0f;
-	glm::vec2 RenderTargetSize = { 0.0f, 0.0f };
-	glm::vec2 InvRenderTargetSize = { 0.0f, 0.0f };
-	float NearZ = 0.0f;
-	float FarZ = 0.0f;
-	float TotalTime = 0.0f;
-	float DeltaTime = 0.0f;
-};
-
 fb::IRenderer* gRenderer = nullptr;
 //struct MeshGeometry* gBoxMesh = nullptr;
 float Radius = 30.0f;
@@ -98,7 +75,7 @@ std::vector<fb::RenderItem*> RenderItemLayers[(int)ERenderLayer::Count];
 UINT PassCbvOffset = 0;
 std::unordered_map<std::string, fb::IShaderIPtr> Shaders;
 fb::IRootSignatureIPtr SimpleBoxRootSig;
-fb::IRootSignatureIPtr MultiDrawRootSig;
+fb::IRootSignatureIPtr CBVRootSig;
 bool IsWireframe = false;
 // Global Variables:
 HINSTANCE hInst;       // current instance
@@ -261,6 +238,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    Width = r.right - r.left;
    Height = r.bottom - r.top;
    gRenderer = fb::InitRenderer(fb::RendererType::D3D12, (void*)WindowHandle);
+
    BuildFrameResources();
 
    gRenderer->ResetCommandList(nullptr, 0);
@@ -268,24 +246,20 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    BuildShapeGeometry();
 
-   std::cout << "Build Shape Geometry" << std::endl;
-
-   BuildRenderItems();
-
-   std::cout << "Build Render Items" << std::endl;
-
    BuildWaves();
-
-   std::cout << "Build Waves." << std::endl;
 
    BuildShadersAndInputLayout();
 
    BuildLandGeometry();
 
    BuildWavesGeometryBuffers();
+
+   BuildRenderItems();
+
+   BuildConstantBuffers(RenderItemLayers[(int)ERenderLayer::Opaque].size());
    
    SimpleBoxRootSig = gRenderer->CreateRootSignature("DTable,1,0");
-   MultiDrawRootSig = gRenderer->CreateRootSignature("DTable,1,0;DTable,1,1;");
+   CBVRootSig = gRenderer->CreateRootSignature("RootCBV,0;RootCBV,1;");
 
    std::cout << "Root sig." << std::endl;
 
@@ -735,7 +709,7 @@ void BuildPSO()
 {
 	fb::FPSODesc psoDesc;
 	psoDesc.InputLayout = { InputLayout.data(), (UINT)InputLayout.size() };
-	psoDesc.pRootSignature = MultiDrawRootSig;
+	psoDesc.pRootSignature = CBVRootSig;
 	psoDesc.VS =
 	{
 		reinterpret_cast<BYTE*>(Shaders["standardVS"]->GetByteCode()),
@@ -959,9 +933,9 @@ void Draw(float dt)
 	gRenderer->SetDefaultRenderTargets();
 
 	gRenderer->BindDescriptorHeap(fb::EDescriptorHeapType::Default);
-	MultiDrawRootSig->Bind();
-	int passCbvIndex = PassCbvOffset + CurrentFrameResourceIndex;
-	gRenderer->SetGraphicsRootDescriptorTable(1, fb::EDescriptorHeapType::Default, passCbvIndex);
+	CBVRootSig->Bind();
+
+	gRenderer->SetGraphicsRootConstantBufferView(1, curFR.CBPerFrame, 0);
 
 	DrawRenderItems();
 
