@@ -112,6 +112,7 @@ void BuildShapeGeometry();
 void BuildRenderItems();
 void BuildWaves();
 void Draw(float dt);
+void OnKeyboardInput();
 
 
 void Test()
@@ -505,6 +506,8 @@ void UpdateWaves(float dt)
 
 void Update(float dt)
 {
+	OnKeyboardInput();
+
 	auto& curFR = GetFrameResource_WaitAvailable(CurrentFrameResourceIndex);
 
 	// Convert Spherical to Cartesian coordinates.
@@ -543,15 +546,15 @@ void OnMouseMove(WPARAM btnState, int x, int y)
 	}
 	else if ((btnState & MK_RBUTTON) != 0)
 	{
-		// Make each pixel correspond to 0.005 unit in the scene.
-		float dx = 0.005f * static_cast<float>(x - LastMousePos.x);
-		float dy = 0.005f * static_cast<float>(y - LastMousePos.y);
+		// Make each pixel correspond to 0.2 unit in the scene.
+		float dx = 0.2f * static_cast<float>(x - LastMousePos.x);
+		float dy = 0.2f * static_cast<float>(y - LastMousePos.y);
 
 		// Update the camera radius based on input.
 		Radius += dx - dy;
 
 		// Restrict the radius.
-		Radius = glm::clamp(Radius, 3.0f, 15.0f);
+		Radius = glm::clamp(Radius, 5.0f, 150.0f);
 	}
 
 	LastMousePos.x = x;
@@ -946,4 +949,12 @@ void Draw(float dt)
 	gRenderer->PresentAndSwapBuffer();
 
 	 curFR.Fence = gRenderer->SignalFence();
+}
+
+void OnKeyboardInput()
+{
+	if (GetAsyncKeyState('1') & 0x8000)
+		IsWireframe = true;
+	else
+		IsWireframe = false;
 }
