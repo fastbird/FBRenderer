@@ -60,15 +60,21 @@ namespace fb
 		virtual void BindDescriptorHeap(EDescriptorHeapType type) = 0;
 		virtual void SetGraphicsRootConstantBufferView(int rootParamIndex, fb::IUploadBufferIPtr constantBuffer, int offset) = 0;
 		virtual void SetGraphicsRootDescriptorTable(int rootParamIndex, fb::EDescriptorHeapType heapType, int index) = 0;
+		virtual void SetGraphicsRoot32BitConstants(UINT RootParameterIndex, UINT Num32BitValuesToSet, const void* pSrcData, UINT DestOffsetIn32BitValues) = 0;
 		virtual void SetPrimitiveTopology(const fb::EPrimitiveTopology topology) = 0;
+		virtual void SetPipelineState(PSOID psoID) = 0;
 		virtual void DrawIndexedInstanced(UINT IndexCountPerInstance,
 			UINT InstanceCount,
 			UINT StartIndexLocation,
 			INT BaseVertexLocation,
 			UINT StartInstanceLocation) = 0;
+		virtual void DrawInstanced(UINT VertexCountPerInstance,
+			UINT InstanceCount,
+			UINT StartVertexLocation,
+			UINT StartInstanceLocation) = 0;
 		virtual void ResourceBarrier_Backbuffer_PresentToRenderTarget() = 0;
 		virtual void ResourceBarrier_Backbuffer_RenderTargetToPresent() = 0;
-		virtual void SetViewportAndScissor(UINT width, UINT height) = 0;
+		virtual void SetViewportAndScissor(int x, int y, UINT width, UINT height) = 0;
 		virtual void ClearRenderTargetDepthStencil() = 0;
 		virtual void SetDefaultRenderTargets() = 0;		
 		virtual UINT64 SignalFence() = 0;

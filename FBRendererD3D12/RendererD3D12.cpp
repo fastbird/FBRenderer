@@ -397,7 +397,10 @@ IRootSignature* RendererD3D12::CreateRootSignature(const char* definition)
 		}
 		else if (paramItem[0] == std::string_view(RootConstantName))
 		{
-			assert(0 && "Not implemented.");
+			int gpuIndex = atoi(std::string(paramItem[1]).c_str());
+			int numValues = atoi(std::string(paramItem[2]).c_str());
+			int registerSpace = 0;
+			slotRootParameter[cpuIndex].InitAsConstants(numValues, gpuIndex, registerSpace);
 		}
 		++cpuIndex;
 	}
@@ -532,6 +535,13 @@ void RendererD3D12::SetGraphicsRootDescriptorTable(int rootParamIndex, fb::EDesc
 	}
 }
 
+void RendererD3D12::SetGraphicsRoot32BitConstants(UINT RootParameterIndex, UINT Num32BitValuesToSet, 
+	const void* pSrcData, UINT DestOffsetIn32BitValues)
+{
+	CommandList->SetGraphicsRoot32BitConstants(RootParameterIndex, Num32BitValuesToSet,
+		pSrcData, DestOffsetIn32BitValues);
+}
+
 void RendererD3D12::TempCreateRootSignatureForSimpleBox()
 {
 	CD3DX12_ROOT_PARAMETER slotRootParameter[1];
@@ -582,6 +592,15 @@ void RendererD3D12::SetPrimitiveTopology(const fb::EPrimitiveTopology topology)
 	CommandList->IASetPrimitiveTopology(Convert(topology));
 }
 
+void RendererD3D12::SetPipelineState(PSOID pso)
+{
+	auto it = PSOs.find(pso);
+	if (it != PSOs.end())
+	{
+		CommandList->SetPipelineState(it->second.Get());
+	}
+}
+
 void RendererD3D12::DrawIndexedInstanced(UINT IndexCountPerInstance,
 	UINT InstanceCount,
 	UINT StartIndexLocation,
@@ -589,6 +608,14 @@ void RendererD3D12::DrawIndexedInstanced(UINT IndexCountPerInstance,
 	UINT StartInstanceLocation)
 {
 	CommandList->DrawIndexedInstanced(IndexCountPerInstance, InstanceCount, StartIndexLocation, BaseVertexLocation, StartInstanceLocation);
+}
+
+void RendererD3D12::DrawInstanced(UINT VertexCountPerInstance,
+	UINT InstanceCount,
+	UINT StartVertexLocation,
+	UINT StartInstanceLocation)
+{
+	CommandList->DrawInstanced(VertexCountPerInstance, InstanceCount, StartVertexLocation, StartInstanceLocation);
 }
 
 void RendererD3D12::ResourceBarrier_Backbuffer_PresentToRenderTarget()
@@ -603,7 +630,7 @@ void RendererD3D12::ResourceBarrier_Backbuffer_RenderTargetToPresent()
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
 }
 
-void RendererD3D12::SetViewportAndScissor(UINT width, UINT height)
+void RendererD3D12::SetViewportAndScissor(int x, int y, UINT width, UINT height)
 {
 	D3D12_VIEWPORT viewport;
 	viewport.TopLeftX = 0;

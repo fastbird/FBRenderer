@@ -138,6 +138,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="AxisRenderer.h" />
     <ClInclude Include="Colors.h" />
     <ClInclude Include="DataFormat.h" />
     <ClInclude Include="EDescriptorHeapType.h" />
@@ -156,6 +157,7 @@
     <ClInclude Include="Types.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="AxisRenderer.cpp" />
     <ClCompile Include="FBRenderer.cpp" />
     <ClCompile Include="IRenderer.cpp" />
   </ItemGroup>

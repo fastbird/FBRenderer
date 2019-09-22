@@ -7,6 +7,7 @@
 #include "../FBRenderer.h"
 #include "../RenderItem.h"
 #include "../Colors.h"
+#include "../AxisRenderer.h"
 #include "../../FBCommon/glm.h"
 #include "../../FBCommon/AABB.h"
 #include "../../FBCommon/Utility.h"
@@ -70,6 +71,8 @@ enum class ERenderLayer : int
 	Count
 };
 
+fb::IShaderIPtr VS, PS;
+std::vector<fb::FInputElementDesc> InputLayout;
 std::vector<fb::RenderItem*> RenderItemLayers[(int)ERenderLayer::Count];
 
 UINT PassCbvOffset = 0;
@@ -87,6 +90,7 @@ UINT Height = 100;
 Waves* gWaves = nullptr;
 
 fb::RenderItem* gWavesRitem = nullptr;
+fb::AxisRenderer* gAxisRenderer = nullptr;
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -257,7 +261,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    BuildRenderItems();
 
-   BuildConstantBuffers(RenderItemLayers[(int)ERenderLayer::Opaque].size());
+   BuildConstantBuffers((int)RenderItemLayers[(int)ERenderLayer::Opaque].size());
    
    SimpleBoxRootSig = gRenderer->CreateRootSignature("DTable,1,0");
    CBVRootSig = gRenderer->CreateRootSignature("RootCBV,0;RootCBV,1;");
@@ -269,18 +273,16 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    std::cout << "Build PSO." << std::endl;
 
    //BuildBoxGeometry();
+
+   gAxisRenderer = new fb::AxisRenderer(gRenderer, 10, 10, 100, 100, { InputLayout.data(), (UINT)InputLayout.size() });
+   gAxisRenderer->SetShaders(VS, PS);
    
-	gRenderer->CloseCommandList();
-	std::cout << "Close CommandList." << std::endl;
-	gRenderer->ExecuteCommandList();
-	std::cout << "ExecuteCommandList." << std::endl;
-	gRenderer->SignalFence();
-	std::cout << "SignalFence." << std::endl;
-	gRenderer->FlushCommandQueue();
-	std::cout << "FlushCommandQueue" << std::endl;
-	ProjMat = glm::perspectiveFovLH(0.25f * glm::pi<float>(), (float)Width, (float)Height, 1.0f, 1000.0f);
+   gRenderer->CloseCommandList();
+   gRenderer->ExecuteCommandList();
+   gRenderer->SignalFence();
+   gRenderer->FlushCommandQueue();
+   ProjMat = glm::perspectiveFovLH(0.25f * glm::pi<float>(), (float)Width, (float)Height, 1.0f, 1000.0f);
    
-   std::cout << "Initialize finish." << std::endl;
    return gRenderer != nullptr;
 }
 
@@ -578,8 +580,6 @@ void OnMouseUp(WPARAM btnState, int x, int y)
 	ReleaseCapture();
 }
 
-fb::IShaderIPtr VS, PS;
-std::vector<fb::FInputElementDesc> InputLayout;
 void BuildShadersAndInputLayout()
 {
 	Shaders["standardVS"] = gRenderer->CompileShader("Shaders/SimpleShader.hlsl", nullptr, 0, fb::EShaderType::VertexShader, "VS");
@@ -930,7 +930,7 @@ void Draw(float dt)
 	else {
 		gRenderer->ResetCommandList(cmdListAlloc, SimpleBoxPSO);
 	}
-	gRenderer->SetViewportAndScissor(Width, Height);
+	gRenderer->SetViewportAndScissor(0, 0, Width, Height);
 	gRenderer->ResourceBarrier_Backbuffer_PresentToRenderTarget();
 	gRenderer->ClearRenderTargetDepthStencil();
 	gRenderer->SetDefaultRenderTargets();
@@ -941,6 +941,8 @@ void Draw(float dt)
 	gRenderer->SetGraphicsRootConstantBufferView(1, curFR.CBPerFrame, 0);
 
 	DrawRenderItems();
+
+	gAxisRenderer->Render();
 
 	gRenderer->ResourceBarrier_Backbuffer_RenderTargetToPresent();
 
