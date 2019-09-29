@@ -370,7 +370,7 @@ IRootSignature* RendererD3D12::CreateRootSignature(const char* definition)
 			int gpuIndex = atoi(std::string(paramItem[1]).c_str());
 			int registerSpace = 0;
 			if (paramItem.size() > 2)
-				registerSpace = atoi(std::string(paramItem[1]).c_str());
+				registerSpace = atoi(std::string(paramItem[2]).c_str());
 
 			// TODO : shader visibility
 			slotRootParameter[cpuIndex].InitAsConstantBufferView(gpuIndex, registerSpace);
@@ -380,7 +380,7 @@ IRootSignature* RendererD3D12::CreateRootSignature(const char* definition)
 			int gpuIndex = atoi(std::string(paramItem[1]).c_str());
 			int registerSpace = 0;
 			if (paramItem.size() > 2)
-				registerSpace = atoi(std::string(paramItem[1]).c_str());
+				registerSpace = atoi(std::string(paramItem[2]).c_str());
 
 			// TODO : shader visibility
 			slotRootParameter[cpuIndex].InitAsShaderResourceView(gpuIndex, registerSpace);
@@ -390,17 +390,20 @@ IRootSignature* RendererD3D12::CreateRootSignature(const char* definition)
 			int gpuIndex = atoi(std::string(paramItem[1]).c_str());
 			int registerSpace = 0;
 			if (paramItem.size() > 2)
-				registerSpace = atoi(std::string(paramItem[1]).c_str());
+				registerSpace = atoi(std::string(paramItem[2]).c_str());
 
 			// TODO : shader visibility
 			slotRootParameter[cpuIndex].InitAsUnorderedAccessView(gpuIndex, registerSpace);
 		}
 		else if (paramItem[0] == std::string_view(RootConstantName))
 		{
+			assert(paramItem.size() >= 2);
 			int gpuIndex = atoi(std::string(paramItem[1]).c_str());
 			int numValues = atoi(std::string(paramItem[2]).c_str());
 			int registerSpace = 0;
-			slotRootParameter[cpuIndex].InitAsConstants(numValues, gpuIndex, registerSpace);
+			if (paramItem.size() > 3)
+				registerSpace = atoi(std::string(paramItem[3]).c_str());
+			slotRootParameter[cpuIndex].InitAsConstants((UINT)numValues, gpuIndex, registerSpace);
 		}
 		++cpuIndex;
 	}

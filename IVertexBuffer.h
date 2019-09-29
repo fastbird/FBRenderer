@@ -4,6 +4,8 @@
 
 namespace fb
 {
+	FBDeclareIntrusivePointer(IUploadBuffer);
+
 	FBDeclareIntrusivePointer(IVertexBuffer);
 	class IVertexBuffer : public IRefCounted
 	{
@@ -12,6 +14,7 @@ namespace fb
 		virtual bool Initialize(const void* vertexData, UINT size, UINT stride, bool keepData) = 0;
 		virtual UINT GetSize() const = 0;
 		virtual UINT GetStride() const = 0;
+		virtual UINT GetNumVertices() const = 0;
 		virtual void Bind(int startSlot) = 0;
 		virtual void FromUploadBuffer(IUploadBufferIPtr uploadBuffer) = 0;
 	};

@@ -71,7 +71,6 @@ enum class ERenderLayer : int
 	Count
 };
 
-fb::IShaderIPtr VS, PS;
 std::vector<fb::FInputElementDesc> InputLayout;
 std::vector<fb::RenderItem*> RenderItemLayers[(int)ERenderLayer::Count];
 
@@ -274,14 +273,14 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    //BuildBoxGeometry();
 
-   gAxisRenderer = new fb::AxisRenderer(gRenderer, 10, 10, 100, 100, { InputLayout.data(), (UINT)InputLayout.size() });
-   gAxisRenderer->SetShaders(VS, PS);
+   gAxisRenderer = new fb::AxisRenderer(gRenderer, 100, 100, 300, 300, { InputLayout.data(), (UINT)InputLayout.size() });
+   gAxisRenderer->SetShaders(Shaders["axisVS"], Shaders["axisPS"]);
    
    gRenderer->CloseCommandList();
    gRenderer->ExecuteCommandList();
    gRenderer->SignalFence();
    gRenderer->FlushCommandQueue();
-   ProjMat = glm::perspectiveFovLH(0.25f * glm::pi<float>(), (float)Width, (float)Height, 1.0f, 1000.0f);
+   ProjMat = glm::perspectiveFov(0.25f * glm::pi<float>(), (float)Width, (float)Height, 1.0f, 1000.0f);
    
    return gRenderer != nullptr;
 }
@@ -350,7 +349,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			if (!Resizing)
 			{
 				gRenderer->OnResized();
-				ProjMat = glm::perspectiveFovLH(0.25f * glm::pi<float>(), (float)Width, (float)Height, 1.0f, 1000.0f);
+				ProjMat = glm::perspectiveFov(0.25f * glm::pi<float>(), (float)Width, (float)Height, 1.0f, 1000.0f);
 			}
 		}
 		break;
@@ -520,7 +519,14 @@ void Update(float dt)
 	// Build the view matrix.
 	glm::vec3 eyePos(x, y, z);
 	glm::vec3 target(0, 0, 0);
-	ViewMat = glm::lookAtLH(eyePos, target, glm::vec3(0, 1, 0));
+	ViewMat = glm::lookAt(eyePos, target, glm::vec3(0, 1, 0));
+	if (gAxisRenderer)
+	{
+		float x = 5.0f * sinf(Phi) * cosf(Theta);
+		float z = 5.0f * sinf(Phi) * sinf(Theta);
+		float y = 5.0f * cosf(Phi);
+		gAxisRenderer->SetCameraPos(glm::vec3(x, y, z));
+	}
 	
 	PassConstants pc;
 	pc.ViewProj = glm::transpose(ProjMat * ViewMat);
@@ -584,6 +590,9 @@ void BuildShadersAndInputLayout()
 {
 	Shaders["standardVS"] = gRenderer->CompileShader("Shaders/SimpleShader.hlsl", nullptr, 0, fb::EShaderType::VertexShader, "VS");
 	Shaders["opaquePS"] = gRenderer->CompileShader("Shaders/SimpleShader.hlsl", nullptr, 0, fb::EShaderType::PixelShader, "PS");
+
+	Shaders["axisVS"] = gRenderer->CompileShader("Shaders/Axis.hlsl", nullptr, 0, fb::EShaderType::VertexShader, "VS");
+	Shaders["axisPS"] = gRenderer->CompileShader("Shaders/Axis.hlsl", nullptr, 0, fb::EShaderType::PixelShader, "PS");
 
 	InputLayout = {
 		{ "POSITION", 0, fb::EDataFormat::R32G32B32_FLOAT, 0, 0, fb::EInputClassification::PerVertexData, 0 },
