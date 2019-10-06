@@ -10,7 +10,7 @@ namespace fb
 	{
 		RenderItem()
 			: World(1.0f)
-			, NumFramesDirty(2)
+			, NumFramesDirty(NUM_SWAPCHAIN_BUFFERS)
 			, PrimitiveTopology(EPrimitiveTopology::TRIANGLELIST)
 			, IndexCount(0)
 			, StartIndexLocation(0)

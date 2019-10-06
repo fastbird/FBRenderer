@@ -13,13 +13,14 @@
 #include "../../FBCommon/Utility.h"
 #include "FrameResource.h"
 #include "Waves.h"
+#include "Material.h"
 
 #define MAX_LOADSTRING 100
 
 struct Vertex
 {
 	glm::vec3 Pos;
-	glm::vec4 Color;
+	glm::vec3 Normal;
 };
 
 struct SubmeshGeometry
@@ -64,6 +65,7 @@ fb::PSOID SimpleBoxPSO;
 fb::PSOID SimpleBoxPSOWireframe;
 UINT CurrentFrameResourceIndex = 0;
 std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> Geometries;
+std::unordered_map<std::string, std::unique_ptr<Material>> Materials;
 std::vector<std::unique_ptr<fb::RenderItem>> AllRitems;
 enum class ERenderLayer : int
 {
@@ -116,6 +118,7 @@ void BuildRenderItems();
 void BuildWaves();
 void Draw(float dt);
 void OnKeyboardInput();
+void BuildMaterials();
 
 
 void Test()
@@ -244,6 +247,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    gRenderer = fb::InitRenderer(fb::RendererType::D3D12, (void*)WindowHandle);
 
    BuildFrameResources();
+   BuildMaterials();
 
    gRenderer->ResetCommandList(nullptr, 0);
    std::cout << "Reset Command List" << std::endl;
@@ -496,7 +500,7 @@ void UpdateWaves(float dt)
 		Vertex v;
 
 		v.Pos = gWaves->Position(i);
-		memcpy(&v.Color.x, fb::Colors::Blue, sizeof(glm::vec4));
+		v.Normal = gWaves->Normal(i);
 
 		currWavesVB->CopyData(i, &v);
 	}
@@ -596,7 +600,7 @@ void BuildShadersAndInputLayout()
 
 	InputLayout = {
 		{ "POSITION", 0, fb::EDataFormat::R32G32B32_FLOAT, 0, 0, fb::EInputClassification::PerVertexData, 0 },
-		{ "COLOR", 0, fb::EDataFormat::R32G32B32A32_FLOAT, 0, 12, fb::EInputClassification::PerVertexData, 0 },
+		{ "NORMAL", 0, fb::EDataFormat::R32G32B32_FLOAT, 0, 12, fb::EInputClassification::PerVertexData, 0 },
 	};
 }
 
@@ -604,6 +608,18 @@ float GetHillsHeight(float x, float z)
 {
 	return 0.3f * (z * sinf(0.1f * x) + x * cosf(0.1f * z));
 }
+
+glm::vec3 GetHillsNormal(float x, float z)
+{
+	// n = (-df/dx, 1, -df/dz)
+	glm::vec3 n(
+		-0.03f * z * cosf(0.1f * x) - 0.3f * cosf(0.1f * z),
+		1.0f,
+		-0.3f * sinf(0.1f * x) + 0.03f * x * sinf(0.1f * z));
+
+	return glm::normalize(n);
+}
+
 
 void BuildLandGeometry()
 {
@@ -622,33 +638,7 @@ void BuildLandGeometry()
 		auto& p = grid.Vertices[i].Position;
 		vertices[i].Pos = p;
 		vertices[i].Pos.y = GetHillsHeight(p.x, p.z);
-
-		// Color the vertex based on its height.
-		if (vertices[i].Pos.y < -10.0f)
-		{
-			// Sandy beach color.
-			vertices[i].Color = glm::vec4(1.0f, 0.96f, 0.62f, 1.0f);
-		}
-		else if (vertices[i].Pos.y < 5.0f)
-		{
-			// Light yellow-green.
-			vertices[i].Color = glm::vec4(0.48f, 0.77f, 0.46f, 1.0f);
-		}
-		else if (vertices[i].Pos.y < 12.0f)
-		{
-			// Dark yellow-green.
-			vertices[i].Color = glm::vec4(0.1f, 0.48f, 0.19f, 1.0f);
-		}
-		else if (vertices[i].Pos.y < 20.0f)
-		{
-			// Dark brown.
-			vertices[i].Color = glm::vec4(0.45f, 0.39f, 0.34f, 1.0f);
-		}
-		else
-		{
-			// White snow.
-			vertices[i].Color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
-		}
+		vertices[i].Normal = GetHillsNormal(p.x, p.z);
 	}
 
 	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
@@ -812,25 +802,25 @@ void BuildShapeGeometry()
 	for (size_t i = 0; i < box.Vertices.size(); ++i, ++k)
 	{
 		vertices[k].Pos = box.Vertices[i].Position;
-		memcpy(&vertices[k].Color.x, fb::Colors::DarkGreen, sizeof(glm::vec4));
+		vertices[k].Normal = box.Vertices[i].Normal;
 	}
 
 	for (size_t i = 0; i < grid.Vertices.size(); ++i, ++k)
 	{
 		vertices[k].Pos = grid.Vertices[i].Position;
-		memcpy(&vertices[k].Color.x, fb::Colors::ForestGreen, sizeof(glm::vec4));
+		vertices[k].Normal = grid.Vertices[i].Normal;
 	}
 
 	for (size_t i = 0; i < sphere.Vertices.size(); ++i, ++k)
 	{
 		vertices[k].Pos = sphere.Vertices[i].Position;
-		memcpy(&vertices[k].Color.x, fb::Colors::Crimson, sizeof(glm::vec4));
+		vertices[k].Normal = sphere.Vertices[i].Normal;
 	}
 
 	for (size_t i = 0; i < cylinder.Vertices.size(); ++i, ++k)
 	{
 		vertices[k].Pos = cylinder.Vertices[i].Position;
-		memcpy(&vertices[k].Color.x, fb::Colors::SteelBlue, sizeof(glm::vec4));
+		vertices[k].Normal = cylinder.Vertices[i].Normal;
 	}
 
 	std::vector<std::uint16_t> indices;
@@ -857,6 +847,28 @@ void BuildShapeGeometry()
 
 	Geometries[geo->Name] = std::move(geo);
 }
+
+void BuildMaterials()
+{
+	auto grass = std::make_unique<Material>();
+	grass->Name = "grass";
+	grass->MatCBIndex = 0;
+	grass->DiffuseAlbedo = glm::vec4(0.2f, 0.6f, 0.2f, 1.0f);
+	grass->FresnelR0 = glm::vec3(0.01f, 0.01f, 0.01f);
+	grass->Roughness = 0.125f;
+
+	// This is not a good water material definition, but we do not have all the rendering
+	// tools we need (transparency, environment reflection), so we fake it for now.
+	auto water = std::make_unique<Material>();
+	water->Name = "water";
+	water->MatCBIndex = 1;
+	water->DiffuseAlbedo = glm::vec4(0.0f, 0.2f, 0.6f, 1.0f);
+	water->FresnelR0 = glm::vec3(0.1f, 0.1f, 0.1f);
+	water->Roughness = 0.0f;
+
+	Materials["grass"] = std::move(grass);
+	Materials["water"] = std::move(water);
+}\
 
 void BuildRenderItems()
 {

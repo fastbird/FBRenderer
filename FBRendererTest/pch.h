@@ -20,3 +20,5 @@
 #include <cassert>
 
 #include "../../FBCommon/glm.h"
+
+#define NUM_SWAPCHAIN_BUFFERS 2
