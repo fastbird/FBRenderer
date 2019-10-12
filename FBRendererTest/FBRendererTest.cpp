@@ -598,6 +598,9 @@ void BuildShadersAndInputLayout()
 	Shaders["axisVS"] = gRenderer->CompileShader("Shaders/Axis.hlsl", nullptr, 0, fb::EShaderType::VertexShader, "VS");
 	Shaders["axisPS"] = gRenderer->CompileShader("Shaders/Axis.hlsl", nullptr, 0, fb::EShaderType::PixelShader, "PS");
 
+	Shaders["lightingVS"] = gRenderer->CompileShader("Shaders/DefaultLight.hlsl", nullptr, 0, fb::EShaderType::VertexShader, "VS");
+	Shaders["lightingPS"] = gRenderer->CompileShader("Shaders/DefaultLight.hlsl", nullptr, 0, fb::EShaderType::PixelShader, "PS");
+
 	InputLayout = {
 		{ "POSITION", 0, fb::EDataFormat::R32G32B32_FLOAT, 0, 0, fb::EInputClassification::PerVertexData, 0 },
 		{ "NORMAL", 0, fb::EDataFormat::R32G32B32_FLOAT, 0, 12, fb::EInputClassification::PerVertexData, 0 },

@@ -51,7 +51,7 @@ AxisRenderer::AxisRenderer(IRenderer* renderer, int x, int y, int width, int hei
 		Vertex(0.f, -0.01f, 1.f, 0.f, 0.f, 1.f),
 	};
 
-	VB = Renderer->CreateVertexBuffer(vertices, (UINT)sizeof(Vertex) * ArrayCount(vertices), (UINT)sizeof(Vertex), false);
+	VB = Renderer->CreateVertexBuffer(vertices, (UINT)(sizeof(Vertex) * ArrayCount(vertices)), (UINT)sizeof(Vertex), false);
 
 	glm::vec3 eyePos(0.f, 0.f, -5.0f);
 	glm::vec3 target(0, 0, 0);
