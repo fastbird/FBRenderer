@@ -10,12 +10,16 @@ size_t ArrayCount(T(&arr)[N])
 	return N;
 }
 
-AxisRenderer::AxisRenderer(IRenderer* renderer, int x, int y, int width, int height, const FInputLayoutDesc& inputLayoutDesc)
+AxisRenderer::AxisRenderer(IRenderer* renderer, int x, int y, int width, int height)
 	: PosX(x), PosY(y)
 	, Width(width), Height(height)
 	, Renderer(renderer)
-	, InputLayoutDesc(inputLayoutDesc)
 {
+	InputLayout = {
+		{ "POSITION", 0, fb::EDataFormat::R32G32B32_FLOAT, 0, 0, fb::EInputClassification::PerVertexData, 0 },
+		{ "COLOR", 0, fb::EDataFormat::R32G32B32A32_FLOAT, 0, 12, fb::EInputClassification::PerVertexData, 0 },
+	};
+
 	RootSignature = Renderer->CreateRootSignature("RootConstant,0,16");
 
 	struct Vertex
@@ -68,7 +72,7 @@ void AxisRenderer::SetShaders(fb::IShaderIPtr vs, fb::IShaderIPtr ps)
 
 	// pso : sharable? 
 	fb::FPSODesc psoDesc;
-	psoDesc.InputLayout = InputLayoutDesc;
+	psoDesc.InputLayout = FInputLayoutDesc{ InputLayout.data(), (UINT)InputLayout.size() };
 	psoDesc.pRootSignature = RootSignature;
 	psoDesc.VS =
 	{

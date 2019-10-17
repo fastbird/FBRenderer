@@ -15,9 +15,10 @@ namespace fb
 		glm::mat4 ViewProj;
 		glm::mat4 Proj;
 		glm::mat4 View;
-		FInputLayoutDesc InputLayoutDesc;
+		std::vector<fb::FInputElementDesc> InputLayout;
+
 	public:
-		AxisRenderer(IRenderer* renderer, int x, int y, int width, int height, const FInputLayoutDesc& inputLayoutDesc);
+		AxisRenderer(IRenderer* renderer, int x, int y, int width, int height);
 		void SetShaders(fb::IShaderIPtr vs, fb::IShaderIPtr ps);
 		void SetViewMat(const glm::mat4& viewMat);
 		void Render();

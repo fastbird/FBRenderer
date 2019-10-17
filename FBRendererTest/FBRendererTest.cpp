@@ -80,6 +80,7 @@ UINT PassCbvOffset = 0;
 std::unordered_map<std::string, fb::IShaderIPtr> Shaders;
 fb::IRootSignatureIPtr SimpleBoxRootSig;
 fb::IRootSignatureIPtr CBVRootSig;
+fb::IRootSignatureIPtr LightingRootSig;
 bool IsWireframe = false;
 // Global Variables:
 HINSTANCE hInst;       // current instance
@@ -268,6 +269,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    
    SimpleBoxRootSig = gRenderer->CreateRootSignature("DTable,1,0");
    CBVRootSig = gRenderer->CreateRootSignature("RootCBV,0;RootCBV,1;");
+   LightingRootSig = gRenderer->CreateRootSignature("RootCBV,0;RootCBV,1;RootCBV,2");
 
    std::cout << "Root sig." << std::endl;
 
@@ -277,7 +279,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    //BuildBoxGeometry();
 
-   gAxisRenderer = new fb::AxisRenderer(gRenderer, 100, 100, 300, 300, { InputLayout.data(), (UINT)InputLayout.size() });
+   gAxisRenderer = new fb::AxisRenderer(gRenderer, 100, 100, 300, 300);
    gAxisRenderer->SetShaders(Shaders["axisVS"], Shaders["axisPS"]);
    
    gRenderer->CloseCommandList();
@@ -714,16 +716,16 @@ void BuildPSO()
 {
 	fb::FPSODesc psoDesc;
 	psoDesc.InputLayout = { InputLayout.data(), (UINT)InputLayout.size() };
-	psoDesc.pRootSignature = CBVRootSig;
+	psoDesc.pRootSignature = LightingRootSig;
 	psoDesc.VS =
 	{
-		reinterpret_cast<BYTE*>(Shaders["standardVS"]->GetByteCode()),
-		Shaders["standardVS"]->Size()
+		reinterpret_cast<BYTE*>(Shaders["lightingVS"]->GetByteCode()),
+		Shaders["lightingVS"]->Size()
 	};
 	psoDesc.PS =
 	{
-		reinterpret_cast<BYTE*>(Shaders["opaquePS"]->GetByteCode()),
-		Shaders["opaquePS"]->Size()
+		reinterpret_cast<BYTE*>(Shaders["lightingPS"]->GetByteCode()),
+		Shaders["lightingPS"]->Size()
 	};
 	//psoDesc.RasterizerState
 	//psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
@@ -960,7 +962,7 @@ void Draw(float dt)
 	gRenderer->SetDefaultRenderTargets();
 
 	gRenderer->BindDescriptorHeap(fb::EDescriptorHeapType::Default);
-	CBVRootSig->Bind();
+	LightingRootSig->Bind();
 
 	gRenderer->SetGraphicsRootConstantBufferView(1, curFR.CBPerFrame, 0);
 

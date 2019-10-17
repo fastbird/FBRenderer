@@ -83,10 +83,10 @@
     <FxCompile Include="Shaders\Axis.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
-    <FxCompile Include="Shaders\LightingUtils.hlsl">
+    <FxCompile Include="Shaders\DefaultLight.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
-    <FxCompile Include="Shaders\DefaultLight.hlsl">
+    <FxCompile Include="Shaders\LightingUtil.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
   </ItemGroup>
