@@ -27,9 +27,28 @@ static void Test()
 
 }
 
+int FindAdapterBiggestDedicatedMemory(const std::vector <IDXGIAdapter*>& adapters) {
+	assert(adapters.size() > 0);
+	int currentIndex = 0;
+	int biggestIndex = 0;
+	SIZE_T biggestMemory = 0;
+	for (auto adapter : adapters) {
+		DXGI_ADAPTER_DESC desc;
+		if (SUCCEEDED(adapter->GetDesc(&desc)))
+		{
+			if (biggestMemory < desc.DedicatedVideoMemory) {
+				biggestMemory = desc.DedicatedVideoMemory;
+				biggestIndex = currentIndex;
+			}
+		}
+		++currentIndex;
+	}
+	return biggestIndex;
+}
+
 bool RendererD3D12::Initialize(void* windowHandle)
 {
-	std::cout << "Initializing Renderer D3D12." << std::endl;
+	std::wcout << L"Initializing Renderer D3D12." << std::endl;
 	gRendererD3D12 = this;
 
 	Test();
@@ -45,11 +64,33 @@ bool RendererD3D12::Initialize(void* windowHandle)
 #endif
 
 	ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&DXGIFactory)));
+	
+	UINT i = 0;
+	IDXGIAdapter* pAdapter;
+	std::vector <IDXGIAdapter*> vAdapters;
+	while (DXGIFactory->EnumAdapters(i, &pAdapter) != DXGI_ERROR_NOT_FOUND)
+	{
+		vAdapters.push_back(pAdapter);
+		++i;
+	}
+
+	auto adapterIndex = FindAdapterBiggestDedicatedMemory(vAdapters);
+	
+	DXGI_ADAPTER_DESC desc;
+	if (SUCCEEDED(vAdapters[adapterIndex]->GetDesc(&desc)))
+	{
+		std::wcout << L"Selected adapter : " << desc.Description << std::endl;
+	}
 
 	ThrowIfFailed(D3D12CreateDevice(
-		nullptr,             // default adapter
+		vAdapters[adapterIndex],             // default adapter
 		D3D_FEATURE_LEVEL_11_0,
 		IID_PPV_ARGS(&Device)));
+
+	for (auto adapter : vAdapters)
+	{
+	//	adapter->Release();
+	}
 
 	ThrowIfFailed(Device->CreateFence(0, D3D12_FENCE_FLAG_NONE,
 		IID_PPV_ARGS(&Fence)));
@@ -84,15 +125,37 @@ bool RendererD3D12::Initialize(void* windowHandle)
 
 	OnResized();
 
-	std::cout << "Finish Initialization." << std::endl;
+	std::wcout << L"Finish Initialization." << std::endl;
 	return true;
 }
 
+LiveObjectReporter::~LiveObjectReporter()
+{
+#ifdef _DEBUG
+	typedef HRESULT(*GetDXGIGetDebugInterface)(
+		REFIID riid,
+		void** ppDebug
+		);
+	auto module = GetModuleHandle(L"Dxgidebug.dll");
+	if (module) {
+		GetDXGIGetDebugInterface  GetDebugInterface = (GetDXGIGetDebugInterface)GetProcAddress(module, "DXGIGetDebugInterface");
+		ComPtr<IDXGIDebug> dxgiDebug;
+		GetDebugInterface(IID_PPV_ARGS(&dxgiDebug));
+		if (dxgiDebug)
+		{
+			dxgiDebug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_ALL);
+		}
+	}
+#endif
+}
 void RendererD3D12::Finalize()
 {
 	PSOs.clear();
+	SignalFence();
+	FlushCommandQueue();
 	CloseHandle(FenceEventHandle);
 	gRendererD3D12 = nullptr;
+
 	delete this;
 }
 

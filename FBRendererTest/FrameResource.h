@@ -4,6 +4,19 @@
 #include "../Types.h"
 #include "Light.h"
 
+struct ObjectConstants
+{
+	glm::mat4 World = glm::mat4(1.0f);
+};
+
+struct MaterialConstants
+{
+	glm::vec4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
+	glm::vec3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
+	float Roughness = .25f;
+	glm::mat4 MatTransform;
+};
+
 struct PassConstants
 {
 	glm::mat4 View = glm::mat4(1.0f);
@@ -32,20 +45,17 @@ struct PassConstants
 struct FFrameResource
 {
 	fb::ICommandAllocatorIPtr CommandAllocator;
-	fb::IUploadBufferIPtr CBPerFrame;
 	fb::IUploadBufferIPtr CBPerObject;
+	fb::IUploadBufferIPtr CBPerMaterial;
+	fb::IUploadBufferIPtr CBPerFrame;
 	fb::IUploadBufferIPtr WavesVB;
 	fb::UINT64 Fence = 0;
-};
-
-struct ObjectConstants
-{
-	glm::mat4 World = glm::mat4(1.0f);
 };
 
 extern std::vector<FFrameResource> FrameResources;
 
 void BuildFrameResources();
+void DestroyFrameResources();
 void BuildConstantBuffers(int numObj);
 inline FFrameResource& GetFrameResource(UINT index) { return FrameResources[index]; }
 FFrameResource& GetFrameResource_WaitAvailable(UINT index);

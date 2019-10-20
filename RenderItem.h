@@ -20,6 +20,7 @@ namespace fb
 		glm::mat4 World;
 		int NumFramesDirty;
 		UINT ConstantBufferIndex = -1;
+		Material* Mat = nullptr;
 		IVertexBufferIPtr VB;
 		IIndexBufferIPtr IB;
 		EPrimitiveTopology PrimitiveTopology;

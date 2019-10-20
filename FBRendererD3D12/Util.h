@@ -1,5 +1,5 @@
 #pragma once
-
+#include "../../FBCommon/StringHeader.h"
 #define ThrowIfFailed(x)                                              \
 {                                                                     \
     HRESULT hr__ = (x);                                               \
@@ -10,13 +10,6 @@
 #define ReleaseCom(x) { if(x){ x->Release(); x = 0; } }
 
 namespace fb {
-
-inline std::wstring AnsiToWString(const char* str)
-{
-	WCHAR buffer[1024];
-	MultiByteToWideChar(CP_ACP, 0, str, -1, buffer, 512);
-	return std::wstring(buffer);
-}
 
 class DxException
 {

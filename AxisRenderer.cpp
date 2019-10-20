@@ -64,6 +64,11 @@ AxisRenderer::AxisRenderer(IRenderer* renderer, int x, int y, int width, int hei
 	ViewProj = glm::transpose(Proj * View);
 }
 
+AxisRenderer::~AxisRenderer()
+{
+
+}
+
 void AxisRenderer::SetShaders(fb::IShaderIPtr vs, fb::IShaderIPtr ps)
 {
 	assert(vs && ps);

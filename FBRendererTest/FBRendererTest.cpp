@@ -59,7 +59,6 @@ float Phi = glm::four_over_pi<float>();
 float Theta = 1.5f * glm::pi<float>();
 glm::mat4 WorldMat(1.0f), ViewMat(1.0f), ProjMat(1.0f);
 fb::IUploadBuffer* PerPassCBs = nullptr;
-std::vector<fb::IUploadBuffer*> PerObjectCBs;
 POINT LastMousePos;
 fb::PSOID SimpleBoxPSO;
 fb::PSOID SimpleBoxPSOWireframe;
@@ -107,8 +106,10 @@ void OnMouseDown(WPARAM btnState, int x, int y);
 void OnMouseUp(WPARAM btnState, int x, int y);
 
 void BuildShadersAndInputLayout();
+void DestroyShaders();
 
 void BuildLandGeometry();
+void DestroyGeometries();
 
 void BuildWavesGeometryBuffers();
 
@@ -120,6 +121,8 @@ void BuildWaves();
 void Draw(float dt);
 void OnKeyboardInput();
 void BuildMaterials();
+
+void DestroyRenderItems();
 
 
 void Test()
@@ -134,9 +137,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
 
-	std::ofstream out("log.txt");
-	std::streambuf* coutbuf = std::cout.rdbuf(); //save old buf
-	std::cout.rdbuf(out.rdbuf()); //redirect std::cout to out.txt!
+	std::wofstream out("log.txt");
+	
+	std::wstreambuf* coutbuf = std::wcout.rdbuf(); //save old buf
+	std::wcout.rdbuf(out.rdbuf()); //redirect std::cout to out.txt!
 
     // TODO: Place code here.
 	Test();
@@ -148,7 +152,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     // Perform application initialization:
     if (!InitInstance (hInstance, nCmdShow))
     {
-		std::cout << "InitInstance() failed!" << std::endl;
+		std::wcout << L"InitInstance() failed!" << std::endl;
         return FALSE;
     }
 
@@ -172,7 +176,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			Update(dt);
 			if (gRenderer)
 			{
-				std::cout << "Calling Draw()" << std::endl;
 				Draw(dt);
 				using namespace std::chrono_literals;
 				std::this_thread::sleep_for(5ms);
@@ -181,11 +184,21 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		}
 	}
 
+	gRenderer->SignalFence();
+	gRenderer->FlushCommandQueue();
 	//delete gBoxMesh; gBoxMesh = nullptr;
+	DestroyRenderItems();
+	DestroyGeometries();
 	delete gWaves; gWaves = nullptr;
 	delete PerPassCBs; PerPassCBs = nullptr;
+	DestroyFrameResources();
+	LightingRootSig.reset();
+	CBVRootSig.reset();
+	SimpleBoxRootSig.reset();
+	delete gAxisRenderer; gAxisRenderer = nullptr;
+	DestroyShaders();
 	fb::FinalizeRenderer(gRenderer);
-	std::cout << "Renderer Finalized!" << std::endl;
+	std::wcout << L"Renderer Finalized!" << std::endl;
     return (int) msg.wParam;
 }
 
@@ -251,7 +264,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    BuildMaterials();
 
    gRenderer->ResetCommandList(nullptr, 0);
-   std::cout << "Reset Command List" << std::endl;
+   std::wcout << L"Reset Command List" << std::endl;
 
    BuildShapeGeometry();
 
@@ -271,11 +284,11 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    CBVRootSig = gRenderer->CreateRootSignature("RootCBV,0;RootCBV,1;");
    LightingRootSig = gRenderer->CreateRootSignature("RootCBV,0;RootCBV,1;RootCBV,2");
 
-   std::cout << "Root sig." << std::endl;
+   std::wcout << L"Root sig." << std::endl;
 
    BuildPSO();
 
-   std::cout << "Build PSO." << std::endl;
+   std::wcout << L"Build PSO." << std::endl;
 
    //BuildBoxGeometry();
 
@@ -474,6 +487,31 @@ void UpdateObjectCBs(float dt, FFrameResource& curFR)
 	}	
 }
 
+void UpdateMaterialCBs(float dt, FFrameResource& curFR)
+{
+	auto currMaterialCB = GetFrameResource(CurrentFrameResourceIndex).CBPerMaterial;
+	for (auto& e : Materials)
+	{
+		// Only update the cbuffer data if the constants have changed.  If the cbuffer
+		// data changes, it needs to be updated for each FrameResource.
+		Material* mat = e.second.get();
+		if (mat->NumFramesDirty > 0)
+		{
+			glm::mat4 matTransform = glm::transpose(mat->MatTransform);
+
+			MaterialConstants matConstants;
+			matConstants.DiffuseAlbedo = mat->DiffuseAlbedo;
+			matConstants.FresnelR0 = mat->FresnelR0;
+			matConstants.Roughness = mat->Roughness;
+
+			currMaterialCB->CopyData(mat->MatCBIndex, &matConstants);
+
+			// Next FrameResource need to be updated too.
+			mat->NumFramesDirty--;
+		}
+	}
+}
+
 void UpdateWaves(float dt)
 {
 	static float totalTime = 0;
@@ -609,6 +647,11 @@ void BuildShadersAndInputLayout()
 	};
 }
 
+void DestroyShaders()
+{
+	Shaders.clear();
+}
+
 float GetHillsHeight(float x, float z)
 {
 	return 0.3f * (z * sinf(0.1f * x) + x * cosf(0.1f * z));
@@ -665,6 +708,11 @@ void BuildLandGeometry()
 	geo->DrawArgs["grid"] = submesh;
 
 	Geometries["landGeo"] = std::move(geo);
+}
+
+void DestroyGeometries()
+{
+	Geometries.clear();
 }
 
 void BuildWavesGeometryBuffers()
@@ -880,6 +928,7 @@ void BuildRenderItems()
 	auto wavesRitem = std::make_unique<fb::RenderItem>();
 	wavesRitem->ConstantBufferIndex = 0;
 	auto waterGeo = Geometries["waterGeo"].get();
+	wavesRitem->Mat = Materials["water"].get();
 	wavesRitem->VB = waterGeo->VertexBuffer;
 	wavesRitem->IB = waterGeo->IndexBuffer;
 	wavesRitem->PrimitiveTopology =  fb::EPrimitiveTopology::TRIANGLELIST;
@@ -894,6 +943,7 @@ void BuildRenderItems()
 	auto gridRitem = std::make_unique<fb::RenderItem>();
 	gridRitem->ConstantBufferIndex = 1;
 	auto landGeo = Geometries["landGeo"].get();
+	gridRitem->Mat = Materials["grass"].get();
 	gridRitem->VB = landGeo->VertexBuffer;
 	gridRitem->IB = landGeo->IndexBuffer;
 	gridRitem->PrimitiveTopology = fb::EPrimitiveTopology::TRIANGLELIST;
@@ -905,6 +955,11 @@ void BuildRenderItems()
 
 	AllRitems.push_back(std::move(wavesRitem));
 	AllRitems.push_back(std::move(gridRitem));
+}
+
+void DestroyRenderItems()
+{
+	AllRitems.clear();
 }
 
 void BuildWaves()

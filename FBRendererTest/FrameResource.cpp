@@ -17,13 +17,19 @@ void BuildFrameResources()
 	}
 }
 
+void DestroyFrameResources()
+{
+	FrameResources.clear();
+}
+
 void BuildConstantBuffers(int numObj)
 {
 	const auto numBuffers = gRenderer->GetNumSwapchainBuffers();
 	for (int i = 0; i < numBuffers; ++i) {
 		auto& fr = FrameResources[i];
-		fr.CBPerFrame = gRenderer->CreateUploadBuffer(sizeof(PassConstants), 1, true);
 		fr.CBPerObject = gRenderer->CreateUploadBuffer(sizeof(ObjectConstants), numObj, true);
+		fr.CBPerMaterial = gRenderer->CreateUploadBuffer(sizeof(MaterialConstants), numObj, true);
+		fr.CBPerFrame = gRenderer->CreateUploadBuffer(sizeof(PassConstants), 1, true);
 	}
 }
 

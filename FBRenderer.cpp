@@ -12,7 +12,7 @@ using namespace fb;
 typedef fb::IRenderer* (*CreateRendererD3D12)();
 IRenderer* fb::InitRenderer(RendererType type, void* windowHandle)
 {
-	std::cout << "fb::InitRenderer" << std::endl;
+	std::wcout << L"fb::InitRenderer" << std::endl;
 	switch (type)
 	{
 	case RendererType::D3D12:
@@ -20,14 +20,14 @@ IRenderer* fb::InitRenderer(RendererType type, void* windowHandle)
 		HMODULE hmodule = LoadLibrary("FBRendererD3D12.dll");
 		if (!hmodule)
 		{
-			std::cout << "Cannot load FBRendererD3D12.dll" << std::endl;
+			std::wcout << L"Cannot load FBRendererD3D12.dll" << std::endl;
 			return nullptr;
 		}
 		auto createFunc = (CreateRendererD3D12)GetProcAddress(hmodule, "CreateRendererD3D12");
 		auto renderer = createFunc();
 		if (!renderer)
 		{
-			std::cout << "Failed to create Renderer." << std::endl;
+			std::wcout << L"Failed to create Renderer." << std::endl;
 			return nullptr;
 		}
 		renderer->Initialize(windowHandle);
@@ -35,7 +35,7 @@ IRenderer* fb::InitRenderer(RendererType type, void* windowHandle)
 
 	}
 	}
-	std::cout << "Failed to initialize renderer!" << std::endl;
+	std::wcout << L"Failed to initialize renderer!" << std::endl;
 	return nullptr;
 }
 

@@ -14,6 +14,9 @@
 #include <wrl.h>
 #include <dxgi1_4.h>
 #include <d3d12.h>
+#if _DEBUG
+#include <dxgidebug.h>
+#endif
 #include <DirectXColors.h>
 #include <DirectXPackedVector.h>
 #include <d3dcompiler.h>

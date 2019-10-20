@@ -2,8 +2,15 @@
 #include "../IRenderer.h"
 namespace fb
 {
+	struct LiveObjectReporter
+	{
+		~LiveObjectReporter();
+	};
 	class RendererD3D12 : public IRenderer
 	{
+		// Should be placed on the top
+		LiveObjectReporter _LiveObjectReporter;
+
 		Microsoft::WRL::ComPtr<IDXGIFactory4> DXGIFactory;
 		Microsoft::WRL::ComPtr<ID3D12Device> Device;
 		Microsoft::WRL::ComPtr<ID3D12Fence> Fence;

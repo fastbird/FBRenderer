@@ -19,6 +19,7 @@ namespace fb
 
 	public:
 		AxisRenderer(IRenderer* renderer, int x, int y, int width, int height);
+		~AxisRenderer();
 		void SetShaders(fb::IShaderIPtr vs, fb::IShaderIPtr ps);
 		void SetViewMat(const glm::mat4& viewMat);
 		void Render();
