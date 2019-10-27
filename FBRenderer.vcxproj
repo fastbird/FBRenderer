@@ -152,7 +152,6 @@
     <ClInclude Include="IVertexBuffer.h" />
     <ClInclude Include="PrimitiveTopology.h" />
     <ClInclude Include="PSO.h" />
-    <ClInclude Include="RenderItem.h" />
     <ClInclude Include="IRootSignature.h" />
     <ClInclude Include="Types.h" />
   </ItemGroup>

@@ -5,7 +5,7 @@
 #include "FBRendererTest.h"
 #include "GeometryGenerator.h"
 #include "../FBRenderer.h"
-#include "../RenderItem.h"
+#include "RenderItem.h"
 #include "../Colors.h"
 #include "../AxisRenderer.h"
 #include "../../FBCommon/glm.h"
@@ -65,7 +65,7 @@ fb::PSOID SimpleBoxPSOWireframe;
 UINT CurrentFrameResourceIndex = 0;
 std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> Geometries;
 std::unordered_map<std::string, std::unique_ptr<Material>> Materials;
-std::vector<std::unique_ptr<fb::RenderItem>> AllRitems;
+std::vector<std::unique_ptr<RenderItem>> AllRitems;
 enum class ERenderLayer : int
 {
 	Opaque = 0,
@@ -73,7 +73,7 @@ enum class ERenderLayer : int
 };
 
 std::vector<fb::FInputElementDesc> InputLayout;
-std::vector<fb::RenderItem*> RenderItemLayers[(int)ERenderLayer::Count];
+std::vector<RenderItem*> RenderItemLayers[(int)ERenderLayer::Count];
 
 UINT PassCbvOffset = 0;
 std::unordered_map<std::string, fb::IShaderIPtr> Shaders;
@@ -90,7 +90,7 @@ UINT Width = 200;
 UINT Height = 100;
 Waves* gWaves = nullptr;
 
-fb::RenderItem* gWavesRitem = nullptr;
+RenderItem* gWavesRitem = nullptr;
 fb::AxisRenderer* gAxisRenderer = nullptr;
 
 // Forward declarations of functions included in this code module:
@@ -479,7 +479,7 @@ void UpdateObjectCBs(float dt, FFrameResource& curFR)
 			ObjectConstants objConstants;
 			objConstants.World = glm::transpose(e->World);
 
-			currObjectCB->CopyData(e->ConstantBufferIndex, &objConstants);
+			currObjectCB->CopyData(e->ObjectCBIndex, &objConstants);
 
 			// Next FrameResource need to be updated too.
 			e->NumFramesDirty--;
@@ -489,7 +489,7 @@ void UpdateObjectCBs(float dt, FFrameResource& curFR)
 
 void UpdateMaterialCBs(float dt, FFrameResource& curFR)
 {
-	auto currMaterialCB = GetFrameResource(CurrentFrameResourceIndex).CBPerMaterial;
+	auto currMaterialCB = curFR.CBPerMaterial;
 	for (auto& e : Materials)
 	{
 		// Only update the cbuffer data if the constants have changed.  If the cbuffer
@@ -549,6 +549,14 @@ void UpdateWaves(float dt)
 	gWavesRitem->VB->FromUploadBuffer(currWavesVB);
 }
 
+glm::vec3 SphericalToCartesian(float radius, float theta, float phi)
+{
+	return glm::vec3(
+		radius * sinf(phi) * cosf(theta),
+		radius * cosf(phi),
+		radius * sinf(phi) * sinf(theta));
+}
+
 void Update(float dt)
 {
 	OnKeyboardInput();
@@ -574,9 +582,14 @@ void Update(float dt)
 	
 	PassConstants pc;
 	pc.ViewProj = glm::transpose(ProjMat * ViewMat);
+	pc.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
+	glm::vec3 lightDir = -SphericalToCartesian(1.0f, 1.25f * glm::pi<float>(), glm::four_over_pi<float>());
+	pc.Lights[0].Direction, lightDir;
+	pc.Lights[0].Strength = { 1.0f, 1.0f, 0.9f };
 	curFR.CBPerFrame->CopyData(0, &pc);
 
 	UpdateObjectCBs(dt, curFR);
+	UpdateMaterialCBs(dt, curFR);
 	UpdateWaves(dt);
 }
 
@@ -925,8 +938,8 @@ void BuildMaterials()
 
 void BuildRenderItems()
 {
-	auto wavesRitem = std::make_unique<fb::RenderItem>();
-	wavesRitem->ConstantBufferIndex = 0;
+	auto wavesRitem = std::make_unique<RenderItem>();
+	wavesRitem->ObjectCBIndex = 0;
 	auto waterGeo = Geometries["waterGeo"].get();
 	wavesRitem->Mat = Materials["water"].get();
 	wavesRitem->VB = waterGeo->VertexBuffer;
@@ -940,8 +953,8 @@ void BuildRenderItems()
 
 	RenderItemLayers[(int)ERenderLayer::Opaque].push_back(wavesRitem.get());
 
-	auto gridRitem = std::make_unique<fb::RenderItem>();
-	gridRitem->ConstantBufferIndex = 1;
+	auto gridRitem = std::make_unique<RenderItem>();
+	gridRitem->ObjectCBIndex = 1;
 	auto landGeo = Geometries["landGeo"].get();
 	gridRitem->Mat = Materials["grass"].get();
 	gridRitem->VB = landGeo->VertexBuffer;
@@ -991,8 +1004,11 @@ void DrawRenderItems()
 			LastPrimitiveTopology = ri->PrimitiveTopology;
 		}
 
-		// Offset to the CBV in the descriptor heap for this object and for this frame resource.
-		gRenderer->SetGraphicsRootConstantBufferView(0, curFR.CBPerObject, cvStride *ri->ConstantBufferIndex);
+		gRenderer->SetGraphicsRootConstantBufferView(0, curFR.CBPerObject, cvStride * ri->ObjectCBIndex);
+		assert(ri->Mat);
+		gRenderer->SetGraphicsRootConstantBufferView(1, curFR.CBPerMaterial, cvStride * ri->Mat->MatCBIndex);
+
+
 		//UINT cbvIndex = (UINT)opaqueRenderItems.size() + ri->ConstantBufferIndex;
 		//gRenderer->SetGraphicsRootDescriptorTable(0, fb::EDescriptorHeapType::Default, cbvIndex);
 		gRenderer->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0 );
@@ -1019,7 +1035,7 @@ void Draw(float dt)
 	gRenderer->BindDescriptorHeap(fb::EDescriptorHeapType::Default);
 	LightingRootSig->Bind();
 
-	gRenderer->SetGraphicsRootConstantBufferView(1, curFR.CBPerFrame, 0);
+	gRenderer->SetGraphicsRootConstantBufferView(2, curFR.CBPerFrame, 0);
 
 	DrawRenderItems();
 

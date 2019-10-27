@@ -45,9 +45,6 @@
     <ClInclude Include="EDescriptorHeapType.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="RenderItem.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="IVertexBuffer.h">
       <Filter>Header Files</Filter>
     </ClInclude>

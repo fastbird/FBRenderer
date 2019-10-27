@@ -169,6 +169,7 @@ xcopy Shaders ..\App\Shaders /Y /I /S</Command>
     <ClInclude Include="Light.h" />
     <ClInclude Include="Material.h" />
     <ClInclude Include="pch.h" />
+    <ClInclude Include="RenderItem.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="Waves.h" />
