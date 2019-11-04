@@ -5,6 +5,7 @@
 #include "FBRendererTest.h"
 #include "GeometryGenerator.h"
 #include "../FBRenderer.h"
+#include "../ITexture.h"
 #include "RenderItem.h"
 #include "../Colors.h"
 #include "../AxisRenderer.h"
@@ -65,6 +66,7 @@ fb::PSOID SimpleBoxPSOWireframe;
 UINT CurrentFrameResourceIndex = 0;
 std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> Geometries;
 std::unordered_map<std::string, std::unique_ptr<Material>> Materials;
+std::unordered_map<std::string, fb::ITextureIPtr> Textures;
 std::vector<std::unique_ptr<RenderItem>> AllRitems;
 enum class ERenderLayer : int
 {
@@ -118,6 +120,7 @@ void BuildPSO();
 void BuildShapeGeometry();
 void BuildRenderItems();
 void BuildWaves();
+void LoadTextures();
 void Draw(float dt);
 void OnKeyboardInput();
 void BuildMaterials();
@@ -645,14 +648,14 @@ void OnMouseUp(WPARAM btnState, int x, int y)
 
 void BuildShadersAndInputLayout()
 {
-	Shaders["standardVS"] = gRenderer->CompileShader("Shaders/SimpleShader.hlsl", nullptr, 0, fb::EShaderType::VertexShader, "VS");
-	Shaders["opaquePS"] = gRenderer->CompileShader("Shaders/SimpleShader.hlsl", nullptr, 0, fb::EShaderType::PixelShader, "PS");
+	Shaders["standardVS"] = gRenderer->CompileShader(L"Shaders/SimpleShader.hlsl", nullptr, 0, fb::EShaderType::VertexShader, "VS");
+	Shaders["opaquePS"] = gRenderer->CompileShader(L"Shaders/SimpleShader.hlsl", nullptr, 0, fb::EShaderType::PixelShader, "PS");
 
-	Shaders["axisVS"] = gRenderer->CompileShader("Shaders/Axis.hlsl", nullptr, 0, fb::EShaderType::VertexShader, "VS");
-	Shaders["axisPS"] = gRenderer->CompileShader("Shaders/Axis.hlsl", nullptr, 0, fb::EShaderType::PixelShader, "PS");
+	Shaders["axisVS"] = gRenderer->CompileShader(L"Shaders/Axis.hlsl", nullptr, 0, fb::EShaderType::VertexShader, "VS");
+	Shaders["axisPS"] = gRenderer->CompileShader(L"Shaders/Axis.hlsl", nullptr, 0, fb::EShaderType::PixelShader, "PS");
 
-	Shaders["lightingVS"] = gRenderer->CompileShader("Shaders/DefaultLight.hlsl", nullptr, 0, fb::EShaderType::VertexShader, "VS");
-	Shaders["lightingPS"] = gRenderer->CompileShader("Shaders/DefaultLight.hlsl", nullptr, 0, fb::EShaderType::PixelShader, "PS");
+	Shaders["lightingVS"] = gRenderer->CompileShader(L"Shaders/DefaultLight.hlsl", nullptr, 0, fb::EShaderType::VertexShader, "VS");
+	Shaders["lightingPS"] = gRenderer->CompileShader(L"Shaders/DefaultLight.hlsl", nullptr, 0, fb::EShaderType::PixelShader, "PS");
 
 	InputLayout = {
 		{ "POSITION", 0, fb::EDataFormat::R32G32B32_FLOAT, 0, 0, fb::EInputClassification::PerVertexData, 0 },
@@ -984,6 +987,11 @@ void BuildWaves()
 		auto& curFR = GetFrameResource(frameIndex);
 		curFR.WavesVB = gRenderer->CreateUploadBuffer(sizeof(Vertex), gWaves->VertexCount(), false);
 	}
+}
+
+void LoadTextures()
+{
+	Textures["woodCrateTex"] = gRenderer->LoadTexture(L"Textures/WoodCrate01.dds")
 }
 
 void DrawRenderItems()

@@ -16,6 +16,7 @@
 
 namespace fb
 {
+	class ITexture;
 	enum class RendererType {
 		D3D12
 	};	
@@ -42,7 +43,8 @@ namespace fb
 		virtual IUploadBuffer* CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer) = 0;
 		virtual PSOID CreateGraphicsPipelineState(const FPSODesc& psoDesc) = 0;
 		virtual void DestroyGraphicsPipelineState(PSOID psoid) = 0;
-		virtual IShader* CompileShader(const char* filepath, FShaderMacro* macros, int numMacros, EShaderType shaderType, const char* entryFunctionName) = 0;
+		virtual IShader* CompileShader(const wchar_t* filepath, FShaderMacro* macros, int numMacros, EShaderType shaderType, const char* entryFunctionName) = 0;
+		virtual ITexture* LoadTexture(const wchar_t* filepath) = 0;
 		virtual EDataFormat GetBackBufferFormat() const = 0;
 		virtual EDataFormat GetDepthStencilFormat() const = 0;
 		// definition format : type,num,gpuIndex; i.e. DTable,1,0

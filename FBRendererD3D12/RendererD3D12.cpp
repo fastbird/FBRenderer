@@ -6,10 +6,12 @@
 #include "IndexBuffer.h"
 #include "UploadBuffer.h"
 #include "Shader.h"
+#include "Texture.h"
 #include "ConverterD3D12.h"
 #include "RootSignature.h"
 #include <iostream>
 #include "../../FBCommon/StringHeader.h"
+#include "TextureLoader.h"
 
 using namespace fb;
 using Microsoft::WRL::ComPtr;
@@ -346,7 +348,7 @@ void RendererD3D12::DestroyGraphicsPipelineState(PSOID psoid)
 }
 
 IShader* RendererD3D12::CompileShader(
-	const char* filepath, FShaderMacro* macros, int numMacros, EShaderType shaderType, const char* entryFunctionName)
+	const wchar_t* filepath, FShaderMacro* macros, int numMacros, EShaderType shaderType, const char* entryFunctionName)
 {
 	auto shader = new Shader;
 	D3D_SHADER_MACRO* d3dMacros = nullptr;
@@ -383,7 +385,7 @@ IShader* RendererD3D12::CompileShader(
 	assert(shaderTarget != nullptr);
 	try {
 		shader->ByteCode = fb::CompileShader(
-			AnsiToWString(filepath), d3dMacros, entryFunctionName, shaderTarget);
+			filepath, d3dMacros, entryFunctionName, shaderTarget);
 	}
 	catch (const fb::DxException& ex) {
 		ex.PrintErrorMessage();
@@ -392,6 +394,16 @@ IShader* RendererD3D12::CompileShader(
 	}
 	delete[] macros;
 	return shader;
+}
+
+ITexture* RendererD3D12::LoadTexture(const wchar_t* filepath)
+{
+	auto texture = new Texture;
+	
+	CreateDDSTextureFromFile12(Device.Get(), CommandList.Get(), filepath, texture->Resource, woodCrateTex -
+> UploadHeap)
+
+	ThrowIfFailed();
 }
 
 EDataFormat RendererD3D12::GetBackBufferFormat() const

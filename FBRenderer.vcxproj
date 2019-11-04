@@ -148,6 +148,7 @@
     <ClInclude Include="InputElementDesc.h" />
     <ClInclude Include="IRenderer.h" />
     <ClInclude Include="IShader.h" />
+    <ClInclude Include="ITexture.h" />
     <ClInclude Include="IUploadBuffer.h" />
     <ClInclude Include="IVertexBuffer.h" />
     <ClInclude Include="PrimitiveTopology.h" />

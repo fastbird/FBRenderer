@@ -59,8 +59,9 @@ namespace fb
 		virtual IUploadBuffer* CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer) override;
 		virtual PSOID CreateGraphicsPipelineState(const FPSODesc& psoDesc) override;
 		virtual void DestroyGraphicsPipelineState(PSOID psoid) override;
-		virtual IShader* CompileShader(
-			const char* filepath, FShaderMacro* macros, int numMacros, EShaderType shaderType, const char* entryFunctionName) override;
+		virtual IShader* CompileShader(const wchar_t* filepath, FShaderMacro* macros, int numMacros, 
+			EShaderType shaderType, const char* entryFunctionName) override;
+		virtual ITexture* LoadTexture(const wchar_t* filepath) override;
 		virtual EDataFormat GetBackBufferFormat() const override;
 		virtual EDataFormat GetDepthStencilFormat() const override;
 		virtual IRootSignature* CreateRootSignature(const char* definition) override;

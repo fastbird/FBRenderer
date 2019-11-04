@@ -172,6 +172,8 @@
     <ClInclude Include="RendererD3D12.h" />
     <ClInclude Include="RootSignature.h" />
     <ClInclude Include="Shader.h" />
+    <ClInclude Include="Texture.h" />
+    <ClInclude Include="TextureLoader.h" />
     <ClInclude Include="UploadBuffer.h" />
     <ClInclude Include="Util.h" />
     <ClInclude Include="VertexBuffer.h" />
@@ -190,6 +192,7 @@
     <ClCompile Include="RendererD3D12.cpp" />
     <ClCompile Include="RootSignature.cpp" />
     <ClCompile Include="Shader.cpp" />
+    <ClCompile Include="TextureLoader.cpp" />
     <ClCompile Include="UploadBuffer.cpp" />
     <ClCompile Include="Util.cpp" />
     <ClCompile Include="VertexBuffer.cpp" />
