@@ -271,6 +271,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    BuildShapeGeometry();
 
+   LoadTextures();
+
    BuildWaves();
 
    BuildShadersAndInputLayout();
@@ -285,7 +287,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    
    SimpleBoxRootSig = gRenderer->CreateRootSignature("DTable,1,0");
    CBVRootSig = gRenderer->CreateRootSignature("RootCBV,0;RootCBV,1;");
-   LightingRootSig = gRenderer->CreateRootSignature("RootCBV,0;RootCBV,1;RootCBV,2");
+   LightingRootSig = gRenderer->CreateRootSignature("RootCBV,0;RootCBV,1;RootCBV,2;RootSRV,3");
 
    std::wcout << L"Root sig." << std::endl;
 
@@ -991,7 +993,7 @@ void BuildWaves()
 
 void LoadTextures()
 {
-	Textures["woodCrateTex"] = gRenderer->LoadTexture(L"Textures/WoodCrate01.dds")
+	Textures["woodCrateTex"] = gRenderer->LoadTexture(L"Textures/WoodCrate01.dds");
 }
 
 void DrawRenderItems()
@@ -999,7 +1001,6 @@ void DrawRenderItems()
 	fb::EPrimitiveTopology LastPrimitiveTopology = fb::EPrimitiveTopology::UNDEFINED;
 	auto& curFR = GetFrameResource(CurrentFrameResourceIndex);
 	auto& opaqueRenderItems = RenderItemLayers[(int)ERenderLayer::Opaque];
-	auto cvStride = gRenderer->CalcConstantBufferByteSize(sizeof(ObjectConstants));
 	// For each render item...
 	for (size_t i = 0; i < opaqueRenderItems.size(); ++i)
 	{
@@ -1012,10 +1013,11 @@ void DrawRenderItems()
 			LastPrimitiveTopology = ri->PrimitiveTopology;
 		}
 
-		gRenderer->SetGraphicsRootConstantBufferView(0, curFR.CBPerObject, cvStride * ri->ObjectCBIndex);
+		gRenderer->SetGraphicsRootConstantBufferView(0, curFR.CBPerObject, ri->ObjectCBIndex);
 		assert(ri->Mat);
-		gRenderer->SetGraphicsRootConstantBufferView(1, curFR.CBPerMaterial, cvStride * ri->Mat->MatCBIndex);
-
+		gRenderer->SetGraphicsRootConstantBufferView(1, curFR.CBPerMaterial, ri->Mat->MatCBIndex);
+		// index 2 is being used for Per-frame CB.
+		gRenderer->SetGraphicsRootShaderResourceView(3, ri->Texture);
 
 		//UINT cbvIndex = (UINT)opaqueRenderItems.size() + ri->ConstantBufferIndex;
 		//gRenderer->SetGraphicsRootDescriptorTable(0, fb::EDescriptorHeapType::Default, cbvIndex);

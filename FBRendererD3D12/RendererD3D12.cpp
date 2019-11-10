@@ -11,6 +11,7 @@
 #include "RootSignature.h"
 #include <iostream>
 #include "../../FBCommon/StringHeader.h"
+#include "../../FBCommon/Utility.h"
 #include "TextureLoader.h"
 
 using namespace fb;
@@ -396,14 +397,23 @@ IShader* RendererD3D12::CompileShader(
 	return shader;
 }
 
+struct PendingUploaderRemovalInfo
+{
+	PendingUploaderRemovalInfo(ID3D12Resource* uploader)
+		: Uploader(uploader) {}
+
+	ID3D12Resource* Uploader;
+};
+std::vector<PendingUploaderRemovalInfo> PendingUploaderRemovalInfos;
+
 ITexture* RendererD3D12::LoadTexture(const wchar_t* filepath)
 {
 	auto texture = new Texture;
 	
-	CreateDDSTextureFromFile12(Device.Get(), CommandList.Get(), filepath, texture->Resource, woodCrateTex -
-> UploadHeap)
-
-	ThrowIfFailed();
+	Microsoft::WRL::ComPtr<ID3D12Resource> uploadHeap = nullptr;
+	ThrowIfFailed(CreateDDSTextureFromFile12(Device.Get(), CommandList.Get(), filepath, texture->Resource, uploadHeap));
+	PendingUploaderRemovalInfos.push_back(PendingUploaderRemovalInfo(uploadHeap.Detach()));
+	return texture;
 }
 
 EDataFormat RendererD3D12::GetBackBufferFormat() const
@@ -591,11 +601,26 @@ void RendererD3D12::BindDescriptorHeap(EDescriptorHeapType type)
 	}
 }
 
-void RendererD3D12::SetGraphicsRootConstantBufferView(int rootParamIndex, fb::IUploadBufferIPtr constantBuffer, int offset)
+UINT CalcConstantBufferByteSize(UINT beforeAligned)
 {
+	return fb::CalcAligned(beforeAligned, 256);
+}
+
+void RendererD3D12::SetGraphicsRootConstantBufferView(int rootParamIndex, fb::IUploadBufferIPtr constantBuffer, int elementIndex)
+{
+	auto elementSize = constantBuffer->GetElementSize();
+	auto cvStride = CalcConstantBufferByteSize(elementSize);
 	auto gpuAddress = ((UploadBuffer*)constantBuffer.get())->Resource->GetGPUVirtualAddress();
-	gpuAddress += offset;
-	CommandList->SetGraphicsRootConstantBufferView(rootParamIndex, gpuAddress);
+	gpuAddress += (D3D12_GPU_VIRTUAL_ADDRESS)cvStride * elementIndex;
+	CommandList->SetGraphicsRootConstantBufferView((UINT)rootParamIndex, gpuAddress);
+}
+
+void RendererD3D12::SetGraphicsRootShaderResourceView(int rootParamIndex, ITextureIPtr texture)
+{
+	if (!texture)
+		return;
+	auto tex = (Texture*)texture.get();
+	CommandList->SetGraphicsRootShaderResourceView((UINT)rootParamIndex, tex->Resource->GetGPUVirtualAddress());
 }
 
 void RendererD3D12::SetGraphicsRootDescriptorTable(int rootParamIndex, fb::EDescriptorHeapType heapType, int index)
@@ -930,15 +955,6 @@ UINT RendererD3D12::GetClientHeight() const
 	GetClientRect(WindowHandle, &r);
 	return r.bottom - r.top;
 }
-
-struct PendingUploaderRemovalInfo
-{
-	PendingUploaderRemovalInfo(ID3D12Resource* uploader)
-		: Uploader(uploader) {}
-
-	ID3D12Resource* Uploader;
-};
-std::vector<PendingUploaderRemovalInfo> PendingUploaderRemovalInfos;
 
 void RendererD3D12::FlushCommandQueue()
 {

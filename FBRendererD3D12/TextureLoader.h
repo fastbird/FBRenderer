@@ -60,5 +60,5 @@ HRESULT CreateDDSTextureFromFile12(_In_ ID3D12Device* device,
 	_In_z_ const wchar_t* szFileName,
 	_Out_ Microsoft::WRL::ComPtr<ID3D12Resource>& texture,
 	_Out_ Microsoft::WRL::ComPtr<ID3D12Resource>& textureUploadHeap,
-	_In_ size_t maxsize,
-	_Out_opt_ DDS_ALPHA_MODE* alphaMode);
+	_In_ size_t maxsize = 0,
+	_Out_opt_ DDS_ALPHA_MODE* alphaMode = nullptr);

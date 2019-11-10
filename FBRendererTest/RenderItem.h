@@ -2,8 +2,10 @@
 #include "../../FBCommon/glm.h"
 #include "../IVertexBuffer.h"
 #include "../IIndexBuffer.h"
+#include "../ITexture.h"
 #include "../PrimitiveTopology.h"
 #include "Material.h"
+
 
 struct RenderItem
 {
@@ -20,6 +22,7 @@ struct RenderItem
 	int NumFramesDirty;
 	UINT ObjectCBIndex = -1;
 	Material* Mat = nullptr;
+	fb::ITextureIPtr Texture;
 	fb::IVertexBufferIPtr VB;
 	fb::IIndexBufferIPtr IB;
 	fb::EPrimitiveTopology PrimitiveTopology;

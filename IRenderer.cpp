@@ -3,7 +3,3 @@
 
 using namespace fb;
 
-UINT IRenderer::CalcConstantBufferByteSize(UINT beforeAligned) const
-{
-	return fb::CalcAligned(beforeAligned, 256);
-}

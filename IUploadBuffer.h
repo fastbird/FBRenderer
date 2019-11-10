@@ -14,5 +14,6 @@ namespace fb
 		virtual bool Initialize(UINT elementSize, UINT align, UINT count) = 0;
 		virtual void CopyData(UINT elementIndex, void* elementData) = 0;
 		virtual void CreateCBV(UINT elementIndex, EDescriptorHeapType heapType, UINT heapIndex) = 0;
+		virtual UINT GetElementSize() const = 0;
 	};
 }

@@ -119,7 +119,8 @@
     </Link>
     <PostBuildEvent>
       <Command>xcopy ..\x64\Debug\*.exe ..\App\ /Y /I /S
-xcopy Shaders ..\App\Shaders /Y /I /S</Command>
+xcopy Shaders ..\App\Shaders /Y /I /S
+xcopy Textures ..\App\Textures /Y /I /S</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">

@@ -76,7 +76,8 @@ namespace fb
 		virtual void FlushCommandQueue() override;
 
 		virtual void BindDescriptorHeap(EDescriptorHeapType type) override;
-		virtual void SetGraphicsRootConstantBufferView(int rootParamIndex, fb::IUploadBufferIPtr constantBuffer, int offset) override;
+		virtual void SetGraphicsRootConstantBufferView(int rootParamIndex, fb::IUploadBufferIPtr constantBuffer, int elementIndex) override;
+		virtual void SetGraphicsRootShaderResourceView(int rootParamIndex, ITextureIPtr texture) override;
 		virtual void SetGraphicsRootDescriptorTable(int rootParamIndex, fb::EDescriptorHeapType heapType, int index) override;
 		virtual void SetGraphicsRoot32BitConstants(UINT RootParameterIndex, UINT Num32BitValuesToSet, const void* pSrcData, UINT DestOffsetIn32BitValues) override;
 		virtual void SetPrimitiveTopology(const fb::EPrimitiveTopology topology) override;

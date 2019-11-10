@@ -16,7 +16,7 @@
 
 namespace fb
 {
-	class ITexture;
+	FBDeclareIntrusivePointer(ITexture);
 	enum class RendererType {
 		D3D12
 	};	
@@ -60,8 +60,9 @@ namespace fb
 		virtual void PresentAndSwapBuffer() = 0;
 		virtual void FlushCommandQueue() = 0;
 		virtual void BindDescriptorHeap(EDescriptorHeapType type) = 0;
-		virtual void SetGraphicsRootConstantBufferView(int rootParamIndex, fb::IUploadBufferIPtr constantBuffer, int offset) = 0;
-		virtual void SetGraphicsRootDescriptorTable(int rootParamIndex, fb::EDescriptorHeapType heapType, int index) = 0;
+		virtual void SetGraphicsRootConstantBufferView(int rootParamIndex, IUploadBufferIPtr constantBuffer, int elementIndex) = 0;
+		virtual void SetGraphicsRootShaderResourceView(int rootParamIndex, ITextureIPtr texture) = 0;
+		virtual void SetGraphicsRootDescriptorTable(int rootParamIndex, EDescriptorHeapType heapType, int index) = 0;
 		virtual void SetGraphicsRoot32BitConstants(UINT RootParameterIndex, UINT Num32BitValuesToSet, const void* pSrcData, UINT DestOffsetIn32BitValues) = 0;
 		virtual void SetPrimitiveTopology(const fb::EPrimitiveTopology topology) = 0;
 		virtual void SetPipelineState(PSOID psoID) = 0;
@@ -88,8 +89,5 @@ namespace fb
 		virtual void TempBindIndexBuffer(const IIndexBufferIPtr& ib) = 0;		
 		virtual void TempBindRootDescriptorTable(UINT slot, EDescriptorHeapType type) = 0;
 		virtual void TempDrawIndexedInstanced(UINT indexCount) = 0;
-		
-
-		UINT CalcConstantBufferByteSize(UINT beforeAligned) const;
 	};
 }
