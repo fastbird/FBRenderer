@@ -4,7 +4,7 @@ namespace fb
 {
 	class Texture : public ITexture
 	{
-		friend class RendererD3D12;
+	public:
 		Microsoft::WRL::ComPtr<ID3D12Resource> Resource = nullptr;
 	};
 }

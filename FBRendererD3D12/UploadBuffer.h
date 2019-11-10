@@ -18,7 +18,7 @@ namespace fb
 		~UploadBuffer();
 		virtual bool Initialize(UINT elementSize, UINT align, UINT count) override;
 		virtual void CopyData(UINT elementIndex, void* elementData) override;
-		virtual void CreateCBV(UINT elementIndex, EDescriptorHeapType heapType, UINT heapIndex) override;
+		//virtual void CreateCBV(UINT elementIndex, EDescriptorHeapType heapType, UINT heapIndex) override;
 		Microsoft::WRL::ComPtr<ID3D12Resource> GetResource() const { return Resource; }
 		virtual UINT GetElementSize() const override { return ElementSize; }
 		UINT GetCount() const { return Count; }

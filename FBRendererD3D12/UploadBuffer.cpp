@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "UploadBuffer.h"
 #include "Util.h"
-#include "RendererD3D12.h"
+#include "GlobalFunctions.h"
 
 #include "../../FBCommon/Utility.h"
 using namespace fb;
@@ -14,7 +14,7 @@ bool UploadBuffer::Initialize(UINT elementSize, UINT align, UINT count)
 	}
 	ElementSize = elementSize;
 	Count = count;
-	auto device = gRendererD3D12->GetDevice();
+	auto device = GetDevice();
 	try {
 		ThrowIfFailed(device->CreateCommittedResource(
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
@@ -47,17 +47,17 @@ void UploadBuffer::CopyData(UINT elementIndex, void* elementData)
 	memcpy(&MappedData[elementIndex * ElementSize], elementData, ElementSizeBeforeAligned);
 }
 
-void UploadBuffer::CreateCBV(UINT elementIndex, EDescriptorHeapType heapType, UINT heapIndex)
-{
-	assert(heapType == EDescriptorHeapType::Default);
-	D3D12_GPU_VIRTUAL_ADDRESS cbAddress = Resource->GetGPUVirtualAddress();
-	cbAddress += (UINT64)elementIndex * (UINT64)ElementSize;
-	
-	auto descriptorHeap = gRendererD3D12->GetDefaultDescriptorHeap();
-	auto handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(descriptorHeap->GetCPUDescriptorHandleForHeapStart());
-	handle.Offset(heapIndex, gRendererD3D12->GetCbvSrvUavDescriptorSize());
-	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
-	cbvDesc.BufferLocation = cbAddress;
-	cbvDesc.SizeInBytes = ElementSize;
-	gRendererD3D12->GetDevice()->CreateConstantBufferView(&cbvDesc, handle);
-}
+//void UploadBuffer::CreateCBV(UINT elementIndex, EDescriptorHeapType heapType, UINT heapIndex)
+//{
+//	assert(heapType == EDescriptorHeapType::Default);
+//	D3D12_GPU_VIRTUAL_ADDRESS cbAddress = Resource->GetGPUVirtualAddress();
+//	cbAddress += (UINT64)elementIndex * (UINT64)ElementSize;
+//	
+//	auto descriptorHeap = gRendererD3D12->GetDefaultDescriptorHeap();
+//	auto handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(descriptorHeap->GetCPUDescriptorHandleForHeapStart());
+//	handle.Offset(heapIndex, gRendererD3D12->GetCbvSrvUavDescriptorSize());
+//	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
+//	cbvDesc.BufferLocation = cbAddress;
+//	cbvDesc.SizeInBytes = ElementSize;
+//	gRendererD3D12->GetDevice()->CreateConstantBufferView(&cbvDesc, handle);
+//}

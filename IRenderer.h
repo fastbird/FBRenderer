@@ -9,10 +9,10 @@
 #include "PSO.h"
 #include "IUploadBuffer.h"
 #include "ICommandAllocator.h"
-#include "EDescriptorHeapType.h"
 #include "IVertexBuffer.h"
 #include "IIndexBuffer.h"
 #include "IRootSignature.h"
+#include "IDescriptorHeap.h"
 
 namespace fb
 {
@@ -31,7 +31,7 @@ namespace fb
 
 	public:	
 
-		virtual void PrepareDescriptorHeap(EDescriptorHeapType heapType, UINT count) = 0;
+		//virtual void PrepareDescriptorHeap(EDescriptorHeapType heapType, UINT count) = 0;
 		virtual void WaitFence(UINT64 fence) = 0;
 
 		virtual int GetNumSwapchainBuffers() = 0;
@@ -43,6 +43,7 @@ namespace fb
 		virtual IUploadBuffer* CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer) = 0;
 		virtual PSOID CreateGraphicsPipelineState(const FPSODesc& psoDesc) = 0;
 		virtual void DestroyGraphicsPipelineState(PSOID psoid) = 0;
+		virtual IDescriptorHeap* CreateDescriptorHeap(EDescriptorHeapType type, UINT count) = 0;
 		virtual IShader* CompileShader(const wchar_t* filepath, FShaderMacro* macros, int numMacros, EShaderType shaderType, const char* entryFunctionName) = 0;
 		virtual ITexture* LoadTexture(const wchar_t* filepath) = 0;
 		virtual EDataFormat GetBackBufferFormat() const = 0;
@@ -59,10 +60,10 @@ namespace fb
 		virtual void ExecuteCommandList() = 0;
 		virtual void PresentAndSwapBuffer() = 0;
 		virtual void FlushCommandQueue() = 0;
-		virtual void BindDescriptorHeap(EDescriptorHeapType type) = 0;
+		//virtual void BindDescriptorHeap(EDescriptorHeapType type) = 0;
 		virtual void SetGraphicsRootConstantBufferView(int rootParamIndex, IUploadBufferIPtr constantBuffer, int elementIndex) = 0;
 		virtual void SetGraphicsRootShaderResourceView(int rootParamIndex, ITextureIPtr texture) = 0;
-		virtual void SetGraphicsRootDescriptorTable(int rootParamIndex, EDescriptorHeapType heapType, int index) = 0;
+		virtual void SetGraphicsRootDescriptorTable(int rootParamIndex, IDescriptorHeapIPtr descriptorHeap, int index) = 0;
 		virtual void SetGraphicsRoot32BitConstants(UINT RootParameterIndex, UINT Num32BitValuesToSet, const void* pSrcData, UINT DestOffsetIn32BitValues) = 0;
 		virtual void SetPrimitiveTopology(const fb::EPrimitiveTopology topology) = 0;
 		virtual void SetPipelineState(PSOID psoID) = 0;
@@ -87,7 +88,6 @@ namespace fb
 		virtual void TempCreateRootSignatureForSimpleBox() = 0;
 		virtual void TempBindVertexBuffer(const IVertexBufferIPtr& vb) = 0;
 		virtual void TempBindIndexBuffer(const IIndexBufferIPtr& ib) = 0;		
-		virtual void TempBindRootDescriptorTable(UINT slot, EDescriptorHeapType type) = 0;
 		virtual void TempDrawIndexedInstanced(UINT indexCount) = 0;
 	};
 }

@@ -33,6 +33,7 @@ namespace fb
 		UINT RtvDescriptorSize = 0;
 		UINT DsvDescriptorSize = 0;
 		UINT CbvSrvUavDescriptorSize = 0;
+		UINT SamplerDescriptorSize = 0;
 
 		DXGI_FORMAT BackBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 		DXGI_FORMAT DepthStencilFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
@@ -50,7 +51,7 @@ namespace fb
 		virtual void Finalize() override;
 		virtual void WaitFence(UINT64 fence) override;
 		virtual int GetNumSwapchainBuffers() override;
-		virtual void PrepareDescriptorHeap(EDescriptorHeapType heapType, UINT count) override;
+		//virtual void PrepareDescriptorHeap(EDescriptorHeapType heapType, UINT count) override;
 		virtual void OnResized() override;
 
 		virtual ICommandAllocator* CreateCommandAllocator() override;
@@ -59,6 +60,7 @@ namespace fb
 		virtual IUploadBuffer* CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer) override;
 		virtual PSOID CreateGraphicsPipelineState(const FPSODesc& psoDesc) override;
 		virtual void DestroyGraphicsPipelineState(PSOID psoid) override;
+		virtual IDescriptorHeap* CreateDescriptorHeap(EDescriptorHeapType type, UINT count) override;
 		virtual IShader* CompileShader(const wchar_t* filepath, FShaderMacro* macros, int numMacros, 
 			EShaderType shaderType, const char* entryFunctionName) override;
 		virtual ITexture* LoadTexture(const wchar_t* filepath) override;
@@ -75,10 +77,10 @@ namespace fb
 		virtual void PresentAndSwapBuffer() override;
 		virtual void FlushCommandQueue() override;
 
-		virtual void BindDescriptorHeap(EDescriptorHeapType type) override;
+		//virtual void BindDescriptorHeap(EDescriptorHeapType type) override;
 		virtual void SetGraphicsRootConstantBufferView(int rootParamIndex, fb::IUploadBufferIPtr constantBuffer, int elementIndex) override;
 		virtual void SetGraphicsRootShaderResourceView(int rootParamIndex, ITextureIPtr texture) override;
-		virtual void SetGraphicsRootDescriptorTable(int rootParamIndex, fb::EDescriptorHeapType heapType, int index) override;
+		virtual void SetGraphicsRootDescriptorTable(int rootParamIndex, IDescriptorHeapIPtr descriptorHeap, int index) override;
 		virtual void SetGraphicsRoot32BitConstants(UINT RootParameterIndex, UINT Num32BitValuesToSet, const void* pSrcData, UINT DestOffsetIn32BitValues) override;
 		virtual void SetPrimitiveTopology(const fb::EPrimitiveTopology topology) override;
 		virtual void SetPipelineState(PSOID psoID) override;
@@ -102,7 +104,6 @@ namespace fb
 		virtual void TempCreateRootSignatureForSimpleBox() override;
 		virtual void TempBindVertexBuffer(const IVertexBufferIPtr& vb) override;
 		virtual void TempBindIndexBuffer(const IIndexBufferIPtr& ib) override;		
-		virtual void TempBindRootDescriptorTable(UINT slot, EDescriptorHeapType type) override;
 		virtual void TempDrawIndexedInstanced(UINT indexCount) override;
 
 		// Owning Functions
@@ -115,8 +116,8 @@ namespace fb
 		UINT GetCbvSrvUavDescriptorSize() const { return CbvSrvUavDescriptorSize; }
 		void Bind(ID3D12RootSignature* rootSig);
 		ID3D12GraphicsCommandList* GetGraphicsCommandList() const { return CommandList.Get(); }
-		// Add Public Func;
-		
+		UINT GetDescriptorHeapStride(EDescriptorHeapType type) const;
+		// Add Public Func;		
 
 	private:
 

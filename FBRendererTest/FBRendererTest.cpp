@@ -22,6 +22,7 @@ struct Vertex
 {
 	glm::vec3 Pos;
 	glm::vec3 Normal;
+	glm::vec2 TexC;
 };
 
 struct SubmeshGeometry
@@ -68,6 +69,8 @@ std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> Geometries;
 std::unordered_map<std::string, std::unique_ptr<Material>> Materials;
 std::unordered_map<std::string, fb::ITextureIPtr> Textures;
 std::vector<std::unique_ptr<RenderItem>> AllRitems;
+fb::IDescriptorHeapIPtr DescriptorHeap;
+UINT Num_CBV_SRV_UAV = 1;
 enum class ERenderLayer : int
 {
 	Opaque = 0,
@@ -121,6 +124,7 @@ void BuildShapeGeometry();
 void BuildRenderItems();
 void BuildWaves();
 void LoadTextures();
+void BuildCreateShaderResourceView();
 void Draw(float dt);
 void OnKeyboardInput();
 void BuildMaterials();
@@ -287,7 +291,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    
    SimpleBoxRootSig = gRenderer->CreateRootSignature("DTable,1,0");
    CBVRootSig = gRenderer->CreateRootSignature("RootCBV,0;RootCBV,1;");
-   LightingRootSig = gRenderer->CreateRootSignature("RootCBV,0;RootCBV,1;RootCBV,2;RootSRV,3");
+   // per object, material, per frame, texture
+   LightingRootSig = gRenderer->CreateRootSignature("RootCBV,0;RootCBV,1;RootCBV,2;DTable,0");
 
    std::wcout << L"Root sig." << std::endl;
 
@@ -659,9 +664,13 @@ void BuildShadersAndInputLayout()
 	Shaders["lightingVS"] = gRenderer->CompileShader(L"Shaders/DefaultLight.hlsl", nullptr, 0, fb::EShaderType::VertexShader, "VS");
 	Shaders["lightingPS"] = gRenderer->CompileShader(L"Shaders/DefaultLight.hlsl", nullptr, 0, fb::EShaderType::PixelShader, "PS");
 
+	Shaders["crateVS"] = gRenderer->CompileShader(L"Shaders/Default.hlsl", nullptr, 0, fb::EShaderType::VertexShader, "VS");
+	Shaders["cratePS"] = gRenderer->CompileShader(L"Shaders/Default.hlsl", nullptr, 0, fb::EShaderType::PixelShader, "PS");
+
 	InputLayout = {
 		{ "POSITION", 0, fb::EDataFormat::R32G32B32_FLOAT, 0, 0, fb::EInputClassification::PerVertexData, 0 },
 		{ "NORMAL", 0, fb::EDataFormat::R32G32B32_FLOAT, 0, 12, fb::EInputClassification::PerVertexData, 0 },
+		{ "TEXCOORD", 0, fb::EDataFormat::R32G32_FLOAT, 0, 24, fb::EInputClassification::PerVertexData, 0 },
 	};
 }
 
@@ -785,13 +794,13 @@ void BuildPSO()
 	psoDesc.pRootSignature = LightingRootSig;
 	psoDesc.VS =
 	{
-		reinterpret_cast<BYTE*>(Shaders["lightingVS"]->GetByteCode()),
-		Shaders["lightingVS"]->Size()
+		reinterpret_cast<BYTE*>(Shaders["crateVS"]->GetByteCode()),
+		Shaders["crateVS"]->Size()
 	};
 	psoDesc.PS =
 	{
-		reinterpret_cast<BYTE*>(Shaders["lightingPS"]->GetByteCode()),
-		Shaders["lightingPS"]->Size()
+		reinterpret_cast<BYTE*>(Shaders["cratePS"]->GetByteCode()),
+		Shaders["cratePS"]->Size()
 	};
 	//psoDesc.RasterizerState
 	//psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
@@ -917,6 +926,41 @@ void BuildShapeGeometry()
 	geo->DrawArgs["cylinder"] = cylinderSubmesh;
 
 	Geometries[geo->Name] = std::move(geo);
+
+
+	// Texture Box
+	{
+		GeometryGenerator::MeshData box = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3);
+
+		SubmeshGeometry boxSubmesh;
+		boxSubmesh.IndexCount = (UINT)box.Indices32.size();
+		boxSubmesh.StartIndexLocation = 0;
+		boxSubmesh.BaseVertexLocation = 0;
+
+
+		std::vector<Vertex> vertices(box.Vertices.size());
+
+		for (size_t i = 0; i < box.Vertices.size(); ++i)
+		{
+			vertices[i].Pos = box.Vertices[i].Position;
+			vertices[i].Normal = box.Vertices[i].Normal;
+			vertices[i].TexC = box.Vertices[i].TexC;
+		}
+
+		std::vector<std::uint16_t> indices = box.GetIndices16();
+
+		const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+		const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+		auto geo = std::make_unique<MeshGeometry>();
+		geo->Name = "crateGeo";
+
+		geo->VertexBuffer = gRenderer->CreateVertexBuffer(vertices.data(), vbByteSize, sizeof(Vertex), false);
+		geo->IndexBuffer = gRenderer->CreateIndexBuffer(indices.data(), ibByteSize, fb::EDataFormat::R16_UINT, false);
+
+		geo->DrawArgs["crate"] = boxSubmesh;
+		Geometries[geo->Name] = std::move(geo);
+	}
 }
 
 void BuildMaterials()
@@ -939,11 +983,24 @@ void BuildMaterials()
 
 	Materials["grass"] = std::move(grass);
 	Materials["water"] = std::move(water);
-}\
+}
 
 void BuildRenderItems()
 {
-	auto wavesRitem = std::make_unique<RenderItem>();
+	auto crateItem = std::make_unique<RenderItem>();
+	crateItem->ObjectCBIndex = 0;
+	auto crateGeo = Geometries["crateGeo"].get();
+	crateItem->Mat = Materials["water"].get();
+	crateItem->VB = crateGeo->VertexBuffer;
+	crateItem->IB = crateGeo->IndexBuffer;
+	crateItem->PrimitiveTopology = fb::EPrimitiveTopology::TRIANGLELIST;
+	crateItem->IndexCount = crateGeo->DrawArgs["crate"].IndexCount;
+	crateItem->StartIndexLocation = crateGeo->DrawArgs["crate"].StartIndexLocation;
+	crateItem->BaseVertexLocation = crateGeo->DrawArgs["crate"].BaseVertexLocation;
+	RenderItemLayers[(int)ERenderLayer::Opaque].push_back(crateItem.get());
+	AllRitems.push_back(std::move(crateItem));
+
+	/*auto wavesRitem = std::make_unique<RenderItem>();
 	wavesRitem->ObjectCBIndex = 0;
 	auto waterGeo = Geometries["waterGeo"].get();
 	wavesRitem->Mat = Materials["water"].get();
@@ -972,7 +1029,7 @@ void BuildRenderItems()
 	RenderItemLayers[(int)ERenderLayer::Opaque].push_back(gridRitem.get());
 
 	AllRitems.push_back(std::move(wavesRitem));
-	AllRitems.push_back(std::move(gridRitem));
+	AllRitems.push_back(std::move(gridRitem));*/
 }
 
 void DestroyRenderItems()
@@ -996,6 +1053,16 @@ void LoadTextures()
 	Textures["woodCrateTex"] = gRenderer->LoadTexture(L"Textures/WoodCrate01.dds");
 }
 
+void BuildShaderResourceView()
+{
+	if (!DescriptorHeap)
+		DescriptorHeap = gRenderer->CreateDescriptorHeap(fb::EDescriptorHeapType::CBV_SRV_UAV, Num_CBV_SRV_UAV);
+
+	assert(Textures["woodCrateTex"]);
+	auto result = DescriptorHeap->CreateDescriptor(0, Textures["woodCrateTex"]);
+	assert(result);
+}
+
 void DrawRenderItems()
 {
 	fb::EPrimitiveTopology LastPrimitiveTopology = fb::EPrimitiveTopology::UNDEFINED;
@@ -1017,7 +1084,8 @@ void DrawRenderItems()
 		assert(ri->Mat);
 		gRenderer->SetGraphicsRootConstantBufferView(1, curFR.CBPerMaterial, ri->Mat->MatCBIndex);
 		// index 2 is being used for Per-frame CB.
-		gRenderer->SetGraphicsRootShaderResourceView(3, ri->Texture);
+
+		gRenderer->SetGraphicsRootDescriptorTable(3, DescriptorHeap, 0);
 
 		//UINT cbvIndex = (UINT)opaqueRenderItems.size() + ri->ConstantBufferIndex;
 		//gRenderer->SetGraphicsRootDescriptorTable(0, fb::EDescriptorHeapType::Default, cbvIndex);
@@ -1042,7 +1110,9 @@ void Draw(float dt)
 	gRenderer->ClearRenderTargetDepthStencil();
 	gRenderer->SetDefaultRenderTargets();
 
-	gRenderer->BindDescriptorHeap(fb::EDescriptorHeapType::Default);
+	//gRenderer->BindDescriptorHeap(fb::EDescriptorHeapType::Default);
+	if (DescriptorHeap)
+		DescriptorHeap->Bind();
 	LightingRootSig->Bind();
 
 	gRenderer->SetGraphicsRootConstantBufferView(2, curFR.CBPerFrame, 0);

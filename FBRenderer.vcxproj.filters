@@ -42,9 +42,6 @@
     <ClInclude Include="ICommandAllocator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="EDescriptorHeapType.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="IVertexBuffer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -64,6 +61,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ITexture.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TextureSamplers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="IDescriptorHeap.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

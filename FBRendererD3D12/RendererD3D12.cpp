@@ -13,6 +13,7 @@
 #include "../../FBCommon/StringHeader.h"
 #include "../../FBCommon/Utility.h"
 #include "TextureLoader.h"
+#include "DescriptorHeap.h"
 
 using namespace fb;
 using Microsoft::WRL::ComPtr;
@@ -103,6 +104,7 @@ bool RendererD3D12::Initialize(void* windowHandle)
 	RtvDescriptorSize = Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	DsvDescriptorSize = Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 	CbvSrvUavDescriptorSize = Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	SamplerDescriptorSize = Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
 
 	D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS msQualityLevels;
 	msQualityLevels.Format = BackBufferFormat;
@@ -177,24 +179,24 @@ int RendererD3D12::GetNumSwapchainBuffers()
 	return SwapChainBufferCount;
 }
 
-void RendererD3D12::PrepareDescriptorHeap(EDescriptorHeapType heapType, UINT count)
-{
-	switch (heapType)
-	{
-	case EDescriptorHeapType::Default:
-	{
-		
-		D3D12_DESCRIPTOR_HEAP_DESC heapDesc;
-		heapDesc.NumDescriptors = count;
-		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-		heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-		heapDesc.NodeMask = 0;
-		ThrowIfFailed(Device->CreateDescriptorHeap(&heapDesc,
-			IID_PPV_ARGS(&DefaultDescriptorHeap)));
-		break;
-	}
-	}
-}
+//void RendererD3D12::PrepareDescriptorHeap(EDescriptorHeapType heapType, UINT count)
+//{
+//	switch (heapType)
+//	{
+//	case EDescriptorHeapType::Default:
+//	{
+//		
+//		D3D12_DESCRIPTOR_HEAP_DESC heapDesc;
+//		heapDesc.NumDescriptors = count;
+//		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+//		heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+//		heapDesc.NodeMask = 0;
+//		ThrowIfFailed(Device->CreateDescriptorHeap(&heapDesc,
+//			IID_PPV_ARGS(&DefaultDescriptorHeap)));
+//		break;
+//	}
+//	}
+//}
 
 void RendererD3D12::OnResized()
 {
@@ -348,6 +350,35 @@ void RendererD3D12::DestroyGraphicsPipelineState(PSOID psoid)
 	PSOs.erase(psoid);
 }
 
+IDescriptorHeap* RendererD3D12::CreateDescriptorHeap(EDescriptorHeapType type, UINT count)
+{
+	auto descriptorHeap = new DescriptorHeap;
+	D3D12_DESCRIPTOR_HEAP_DESC heapDesc;
+	heapDesc.NumDescriptors = count;
+	switch (type)
+	{
+	case EDescriptorHeapType::CBV_SRV_UAV:
+		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+		break;
+	case EDescriptorHeapType::Sampler:
+		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
+		break;
+	case EDescriptorHeapType::RTV:
+		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+		break;
+	case EDescriptorHeapType::DSV:
+		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+		break;
+	}
+
+	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	heapDesc.NodeMask = 0;
+	ThrowIfFailed(Device->CreateDescriptorHeap(&heapDesc,
+		IID_PPV_ARGS(&descriptorHeap->DescriptorHeap)));
+	descriptorHeap->Type = type;
+	return descriptorHeap;
+}
+
 IShader* RendererD3D12::CompileShader(
 	const wchar_t* filepath, FShaderMacro* macros, int numMacros, EShaderType shaderType, const char* entryFunctionName)
 {
@@ -493,7 +524,9 @@ IRootSignature* RendererD3D12::CreateRootSignature(const char* definition)
 		++cpuIndex;
 	}
 
-	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc((UINT)parameters.size(), slotRootParameter, 0, nullptr,
+	CD3DX12_STATIC_SAMPLER_DESC StaticSamplers[1];
+	StaticSamplers[0].Init(3, D3D12_FILTER_ANISOTROPIC);
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc((UINT)parameters.size(), slotRootParameter, 1, StaticSamplers,
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
 	ComPtr<ID3DBlob> serializedRootSig = nullptr;
@@ -586,20 +619,20 @@ void RendererD3D12::TempResetCommandList()
 	ThrowIfFailed(CommandList->Reset(DirectCmdAllocator.Get(), nullptr));
 }
 
-void RendererD3D12::BindDescriptorHeap(EDescriptorHeapType type)
-{
-	switch (type)
-	{
-	case EDescriptorHeapType::Default:
-	{
-		if (!DefaultDescriptorHeap)
-			return;
-		ID3D12DescriptorHeap* descriptorHeaps[] = { DefaultDescriptorHeap.Get() };
-		CommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
-		break;
-	}
-	}
-}
+//void RendererD3D12::BindDescriptorHeap(EDescriptorHeapType type)
+//{
+//	switch (type)
+//	{
+//	case EDescriptorHeapType::Default:
+//	{
+//		if (!DefaultDescriptorHeap)
+//			return;
+//		ID3D12DescriptorHeap* descriptorHeaps[] = { DefaultDescriptorHeap.Get() };
+//		CommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+//		break;
+//	}
+//	}
+//}
 
 UINT CalcConstantBufferByteSize(UINT beforeAligned)
 {
@@ -623,19 +656,31 @@ void RendererD3D12::SetGraphicsRootShaderResourceView(int rootParamIndex, ITextu
 	CommandList->SetGraphicsRootShaderResourceView((UINT)rootParamIndex, tex->Resource->GetGPUVirtualAddress());
 }
 
-void RendererD3D12::SetGraphicsRootDescriptorTable(int rootParamIndex, fb::EDescriptorHeapType heapType, int index)
+UINT RendererD3D12::GetDescriptorHeapStride(EDescriptorHeapType type) const
 {
-	switch (heapType) {
-	case EDescriptorHeapType::Default:
+	switch (type)
 	{
-		auto passCbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(DefaultDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-		passCbvHandle.Offset(index, CbvSrvUavDescriptorSize);
-		CommandList->SetGraphicsRootDescriptorTable(rootParamIndex, passCbvHandle);
-		break;
+	case EDescriptorHeapType::CBV_SRV_UAV:
+		return CbvSrvUavDescriptorSize;
+	case EDescriptorHeapType::Sampler:
+		return SamplerDescriptorSize;
+	case EDescriptorHeapType::RTV:
+		return RtvDescriptorSize;
+	case EDescriptorHeapType::DSV:
+		return DsvDescriptorSize;
 	}
-	default:
-		assert(0 && "Not implemented.");
-	}
+	assert(0);
+	return 0;
+}
+
+void RendererD3D12::SetGraphicsRootDescriptorTable(int rootParamIndex, IDescriptorHeapIPtr descriptorHeap, int index)
+{
+	auto dh = (DescriptorHeap*)descriptorHeap.get();
+	if (!dh)
+		return;
+	auto passCbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(dh->DescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+	passCbvHandle.Offset(index, GetDescriptorHeapStride(dh->Type));
+	CommandList->SetGraphicsRootDescriptorTable(rootParamIndex, passCbvHandle);
 }
 
 void RendererD3D12::SetGraphicsRoot32BitConstants(UINT RootParameterIndex, UINT Num32BitValuesToSet, 
@@ -765,18 +810,6 @@ UINT64 RendererD3D12::SignalFence()
 	auto fenceNumber = ++LastSignaledFenceNumber;
 	CommandQueue->Signal(Fence.Get(), fenceNumber);
 	return fenceNumber;
-}
-
-void RendererD3D12::TempBindRootDescriptorTable(UINT slot, EDescriptorHeapType type)
-{
-	switch (type) {
-	case EDescriptorHeapType::Default:
-	{
-		CommandList->SetGraphicsRootDescriptorTable(slot, DefaultDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-		break;
-	}
-	}
-
 }
 
 void RendererD3D12::TempDrawIndexedInstanced(UINT indexCount)

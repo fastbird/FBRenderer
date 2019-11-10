@@ -165,7 +165,9 @@
     <ClInclude Include="CommandAllocator.h" />
     <ClInclude Include="ConverterD3D12.h" />
     <ClInclude Include="d3dx12.h" />
+    <ClInclude Include="DescriptorHeap.h" />
     <ClInclude Include="framework.h" />
+    <ClInclude Include="GlobalFunctions.h" />
     <ClInclude Include="GPUBuffer.h" />
     <ClInclude Include="IndexBuffer.h" />
     <ClInclude Include="pch.h" />
@@ -180,7 +182,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CommandAllocator.cpp" />
+    <ClCompile Include="DescriptorHeap.cpp" />
     <ClCompile Include="dllmain.cpp" />
+    <ClCompile Include="GlobalFunctions.cpp" />
     <ClCompile Include="GPUBuffer.cpp" />
     <ClCompile Include="IndexBuffer.cpp" />
     <ClCompile Include="pch.cpp">

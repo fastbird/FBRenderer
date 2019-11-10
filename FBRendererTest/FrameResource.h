@@ -7,6 +7,7 @@
 struct ObjectConstants
 {
 	glm::mat4 World = glm::mat4(1.0f);
+	glm::mat4 TexTransform = glm::mat4(1.0f);
 };
 
 struct MaterialConstants

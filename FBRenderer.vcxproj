@@ -141,9 +141,9 @@
     <ClInclude Include="AxisRenderer.h" />
     <ClInclude Include="Colors.h" />
     <ClInclude Include="DataFormat.h" />
-    <ClInclude Include="EDescriptorHeapType.h" />
     <ClInclude Include="FBRenderer.h" />
     <ClInclude Include="ICommandAllocator.h" />
+    <ClInclude Include="IDescriptorHeap.h" />
     <ClInclude Include="IIndexBuffer.h" />
     <ClInclude Include="InputElementDesc.h" />
     <ClInclude Include="IRenderer.h" />
@@ -154,6 +154,7 @@
     <ClInclude Include="PrimitiveTopology.h" />
     <ClInclude Include="PSO.h" />
     <ClInclude Include="IRootSignature.h" />
+    <ClInclude Include="TextureSamplers.h" />
     <ClInclude Include="Types.h" />
   </ItemGroup>
   <ItemGroup>
