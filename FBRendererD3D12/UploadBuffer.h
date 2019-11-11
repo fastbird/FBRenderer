@@ -4,12 +4,15 @@ namespace fb
 {
 	class UploadBuffer : public IUploadBuffer
 	{
-		friend class RendererD3D12;
-		Microsoft::WRL::ComPtr<ID3D12Resource> Resource;
 		BYTE* MappedData = nullptr;
 		UINT ElementSize;
 		UINT ElementSizeBeforeAligned;
 		UINT Count;
+
+
+	public:
+		Microsoft::WRL::ComPtr<ID3D12Resource> Resource;
+
 
 	public:
 		UploadBuffer() {}

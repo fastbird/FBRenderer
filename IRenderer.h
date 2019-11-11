@@ -62,7 +62,6 @@ namespace fb
 		virtual void FlushCommandQueue() = 0;
 		//virtual void BindDescriptorHeap(EDescriptorHeapType type) = 0;
 		virtual void SetGraphicsRootConstantBufferView(int rootParamIndex, IUploadBufferIPtr constantBuffer, int elementIndex) = 0;
-		virtual void SetGraphicsRootShaderResourceView(int rootParamIndex, ITextureIPtr texture) = 0;
 		virtual void SetGraphicsRootDescriptorTable(int rootParamIndex, IDescriptorHeapIPtr descriptorHeap, int index) = 0;
 		virtual void SetGraphicsRoot32BitConstants(UINT RootParameterIndex, UINT Num32BitValuesToSet, const void* pSrcData, UINT DestOffsetIn32BitValues) = 0;
 		virtual void SetPrimitiveTopology(const fb::EPrimitiveTopology topology) = 0;

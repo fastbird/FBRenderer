@@ -374,7 +374,7 @@ IDescriptorHeap* RendererD3D12::CreateDescriptorHeap(EDescriptorHeapType type, U
 	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	heapDesc.NodeMask = 0;
 	ThrowIfFailed(Device->CreateDescriptorHeap(&heapDesc,
-		IID_PPV_ARGS(&descriptorHeap->DescriptorHeap)));
+		IID_PPV_ARGS(&descriptorHeap->DescriptorHeapD3D)));
 	descriptorHeap->Type = type;
 	return descriptorHeap;
 }
@@ -473,12 +473,22 @@ IRootSignature* RendererD3D12::CreateRootSignature(const char* definition)
 		auto paramItem = fb::Split(param, ",");
 		if (paramItem[0] == std::string_view(RootDescriptorTableName))
 		{
-			assert(paramItem.size() == 3);
+			assert(paramItem.size() == 4);
 			int numDescriptors = atoi(std::string(paramItem[1]).c_str());
 			int gpuIndex = atoi(std::string(paramItem[2]).c_str());
 			descriptorRanges.push_back(new CD3DX12_DESCRIPTOR_RANGE);
 			CD3DX12_DESCRIPTOR_RANGE* descriptorRange = descriptorRanges.back();
-			descriptorRange->Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, numDescriptors, gpuIndex);
+			D3D12_DESCRIPTOR_RANGE_TYPE rangeType;
+			if (paramItem[3] == std::string_view(DTableRangeTypeCBV))
+				rangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+			else if (paramItem[3] == std::string_view(DTableRangeTypeSRV))
+				rangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+			else if (paramItem[3] == std::string_view(DTableRangeTypeUAV))
+				rangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+			else
+				throw "Unknown descriptor range type found!";
+				
+			descriptorRange->Init(rangeType, numDescriptors, gpuIndex);
 			slotRootParameter[cpuIndex].InitAsDescriptorTable(numDescriptors, descriptorRange);
 		}
 		else if (paramItem[0] == std::string_view(RootDescriptorCBVName))
@@ -648,14 +658,6 @@ void RendererD3D12::SetGraphicsRootConstantBufferView(int rootParamIndex, fb::IU
 	CommandList->SetGraphicsRootConstantBufferView((UINT)rootParamIndex, gpuAddress);
 }
 
-void RendererD3D12::SetGraphicsRootShaderResourceView(int rootParamIndex, ITextureIPtr texture)
-{
-	if (!texture)
-		return;
-	auto tex = (Texture*)texture.get();
-	CommandList->SetGraphicsRootShaderResourceView((UINT)rootParamIndex, tex->Resource->GetGPUVirtualAddress());
-}
-
 UINT RendererD3D12::GetDescriptorHeapStride(EDescriptorHeapType type) const
 {
 	switch (type)
@@ -678,7 +680,7 @@ void RendererD3D12::SetGraphicsRootDescriptorTable(int rootParamIndex, IDescript
 	auto dh = (DescriptorHeap*)descriptorHeap.get();
 	if (!dh)
 		return;
-	auto passCbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(dh->DescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+	auto passCbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(dh->DescriptorHeapD3D->GetGPUDescriptorHandleForHeapStart());
 	passCbvHandle.Offset(index, GetDescriptorHeapStride(dh->Type));
 	CommandList->SetGraphicsRootDescriptorTable(rootParamIndex, passCbvHandle);
 }

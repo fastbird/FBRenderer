@@ -124,7 +124,7 @@ void BuildShapeGeometry();
 void BuildRenderItems();
 void BuildWaves();
 void LoadTextures();
-void BuildCreateShaderResourceView();
+void BuildShaderResourceView();
 void Draw(float dt);
 void OnKeyboardInput();
 void BuildMaterials();
@@ -277,6 +277,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    LoadTextures();
 
+   BuildShaderResourceView();
+
    BuildWaves();
 
    BuildShadersAndInputLayout();
@@ -289,10 +291,10 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    BuildConstantBuffers((int)RenderItemLayers[(int)ERenderLayer::Opaque].size());
    
-   SimpleBoxRootSig = gRenderer->CreateRootSignature("DTable,1,0");
+   SimpleBoxRootSig = gRenderer->CreateRootSignature("DTable,1,0,CBV");
    CBVRootSig = gRenderer->CreateRootSignature("RootCBV,0;RootCBV,1;");
    // per object, material, per frame, texture
-   LightingRootSig = gRenderer->CreateRootSignature("RootCBV,0;RootCBV,1;RootCBV,2;DTable,0");
+   LightingRootSig = gRenderer->CreateRootSignature("RootCBV,0;RootCBV,1;RootCBV,2;DTable,1,0,SRV");
 
    std::wcout << L"Root sig." << std::endl;
 
@@ -556,7 +558,8 @@ void UpdateWaves(float dt)
 	}
 
 	// Set the dynamic VB of the wave renderitem to the current frame VB.
-	gWavesRitem->VB->FromUploadBuffer(currWavesVB);
+	if (gWavesRitem)
+		gWavesRitem->VB->FromUploadBuffer(currWavesVB);
 }
 
 glm::vec3 SphericalToCartesian(float radius, float theta, float phi)
@@ -593,8 +596,8 @@ void Update(float dt)
 	PassConstants pc;
 	pc.ViewProj = glm::transpose(ProjMat * ViewMat);
 	pc.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
-	glm::vec3 lightDir = -SphericalToCartesian(1.0f, 1.25f * glm::pi<float>(), glm::four_over_pi<float>());
-	pc.Lights[0].Direction, lightDir;
+	glm::vec3 lightDir = -SphericalToCartesian(1.0f, 1.25 * glm::pi<float>(), glm::four_over_pi<float>());
+	pc.Lights[0].Direction = lightDir;
 	pc.Lights[0].Strength = { 1.0f, 1.0f, 0.9f };
 	curFR.CBPerFrame->CopyData(0, &pc);
 
@@ -947,16 +950,25 @@ void BuildShapeGeometry()
 			vertices[i].TexC = box.Vertices[i].TexC;
 		}
 
-		std::vector<std::uint16_t> indices = box.GetIndices16();
-
 		const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
-		const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+		UINT ibByteSize;
 
 		auto geo = std::make_unique<MeshGeometry>();
 		geo->Name = "crateGeo";
 
 		geo->VertexBuffer = gRenderer->CreateVertexBuffer(vertices.data(), vbByteSize, sizeof(Vertex), false);
-		geo->IndexBuffer = gRenderer->CreateIndexBuffer(indices.data(), ibByteSize, fb::EDataFormat::R16_UINT, false);
+
+		if (box.Vertices.size() <= 0xffff)
+		{
+			std::vector<std::uint16_t> indices = box.GetIndices16();
+			ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+			geo->IndexBuffer = gRenderer->CreateIndexBuffer(indices.data(), ibByteSize, fb::EDataFormat::R16_UINT, false);
+		}
+		else
+		{
+			ibByteSize = (UINT)box.Indices32.size() * sizeof(std::uint32_t);
+			geo->IndexBuffer = gRenderer->CreateIndexBuffer(box.Indices32.data(), ibByteSize, fb::EDataFormat::R32_UINT, false);
+		}		
 
 		geo->DrawArgs["crate"] = boxSubmesh;
 		Geometries[geo->Name] = std::move(geo);
@@ -968,7 +980,7 @@ void BuildMaterials()
 	auto grass = std::make_unique<Material>();
 	grass->Name = "grass";
 	grass->MatCBIndex = 0;
-	grass->DiffuseAlbedo = glm::vec4(0.2f, 0.6f, 0.2f, 1.0f);
+	grass->DiffuseAlbedo = glm::vec4(1.f, 1.0f, 1.0f, 1.0f);
 	grass->FresnelR0 = glm::vec3(0.01f, 0.01f, 0.01f);
 	grass->Roughness = 0.125f;
 
@@ -990,7 +1002,7 @@ void BuildRenderItems()
 	auto crateItem = std::make_unique<RenderItem>();
 	crateItem->ObjectCBIndex = 0;
 	auto crateGeo = Geometries["crateGeo"].get();
-	crateItem->Mat = Materials["water"].get();
+	crateItem->Mat = Materials["grass"].get();
 	crateItem->VB = crateGeo->VertexBuffer;
 	crateItem->IB = crateGeo->IndexBuffer;
 	crateItem->PrimitiveTopology = fb::EPrimitiveTopology::TRIANGLELIST;
