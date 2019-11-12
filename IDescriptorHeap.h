@@ -18,7 +18,7 @@ namespace fb
 	{
 	public:
 		virtual ~IDescriptorHeap() {}
-		virtual bool CreateDescriptor(UINT index, ITextureIPtr texture) = 0;
+		virtual bool CreateDescriptor(UINT heapIndex, ITextureIPtr texture) = 0;
 		virtual bool CreateDescriptor(UINT heapIndex, IUploadBufferIPtr uploadBuffer, UINT elementIndex) = 0;
 		virtual EDescriptorHeapType GetType() const = 0;
 		virtual void Bind() = 0;

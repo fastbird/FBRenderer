@@ -45,12 +45,14 @@ bool DescriptorHeap::CreateDescriptor(UINT heapIndex, IUploadBufferIPtr uploadBu
 	auto elementSize = ub->GetElementSize();
 	cbAddress += (UINT64)elementIndex * (UINT64)elementSize;
 	
-	auto handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(DescriptorHeapD3D->GetCPUDescriptorHandleForHeapStart());
-	handle.Offset(heapIndex, GetCbvSrvUavDescriptorSize());
+	auto hDescriptor = CD3DX12_CPU_DESCRIPTOR_HANDLE(DescriptorHeapD3D->GetCPUDescriptorHandleForHeapStart());
+	if (heapIndex > 0) {
+		hDescriptor.Offset(heapIndex, GetCbvSrvUavDescriptorSize());
+	}
 	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
 	cbvDesc.BufferLocation = cbAddress;
 	cbvDesc.SizeInBytes = elementSize;
-	GetDevice()->CreateConstantBufferView(&cbvDesc, handle);
+	GetDevice()->CreateConstantBufferView(&cbvDesc, hDescriptor);
 	return true;
 }
 
