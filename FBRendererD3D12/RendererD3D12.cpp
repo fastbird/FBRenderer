@@ -379,16 +379,30 @@ IDescriptorHeap* RendererD3D12::CreateDescriptorHeap(EDescriptorHeapType type, U
 	return descriptorHeap;
 }
 
+UINT32 CountShaderMacro(const FShaderMacro* macros) {
+	if (!macros)
+		return 0;
+	UINT32 count = 0;
+	int loopPrevent = 10000;
+	while (macros->Name != nullptr && --loopPrevent > 0)
+	{
+		++count;
+		++macros;
+	}
+	return count;
+}
+
 IShader* RendererD3D12::CompileShader(
-	const wchar_t* filepath, FShaderMacro* macros, int numMacros, EShaderType shaderType, const char* entryFunctionName)
+	const wchar_t* filepath, const FShaderMacro* macros, EShaderType shaderType, const char* entryFunctionName)
 {
 	auto shader = new Shader;
 	D3D_SHADER_MACRO* d3dMacros = nullptr;
-	if (numMacros > 0) {
+	if (macros) {
+		auto numMacros = CountShaderMacro(macros);
 		d3dMacros = new D3D_SHADER_MACRO[numMacros + 1];
 		for (int i = 0; i < numMacros; ++i) {
 			d3dMacros[i].Name = macros[i].Name;
-			d3dMacros[i].Definition = macros[i].Def;
+			d3dMacros[i].Definition = macros[i].Definition;
 		}
 		d3dMacros[numMacros].Name = nullptr;
 		d3dMacros[numMacros].Definition = nullptr;
@@ -424,7 +438,7 @@ IShader* RendererD3D12::CompileShader(
 		DebugBreak();
 		delete shader; shader = nullptr;
 	}
-	delete[] macros;
+	delete[] d3dMacros;
 	return shader;
 }
 
@@ -796,9 +810,9 @@ void RendererD3D12::SetViewportAndScissor(int x, int y, UINT width, UINT height)
 	CommandList->RSSetScissorRects(1, &rect);
 }
 
-void RendererD3D12::ClearRenderTargetDepthStencil()
+void RendererD3D12::ClearRenderTargetDepthStencil(float clearColor[4])
 {
-	CommandList->ClearRenderTargetView(CurrentBackBufferView(), DirectX::Colors::LightSteelBlue, 0, nullptr);
+	CommandList->ClearRenderTargetView(CurrentBackBufferView(), clearColor, 0, nullptr);
 	CommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 }
 

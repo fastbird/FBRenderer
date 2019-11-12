@@ -21,8 +21,14 @@
 #include "LightingUtil.hlsl"
 
 Texture2D    gDiffuseMap : register(t0);
-SamplerState gAnisotropicSampler  : register(s3);
 
+
+SamplerState gsamPointWrap        : register(s0);
+SamplerState gsamPointClamp       : register(s1);
+SamplerState gsamLinearWrap       : register(s2);
+SamplerState gsamLinearClamp      : register(s3);
+SamplerState gsamAnisotropicWrap  : register(s4);
+SamplerState gsamAnisotropicClamp : register(s5);
 
 // Constant data that varies per frame.
 cbuffer cbPerObject : register(b0)
@@ -57,6 +63,13 @@ cbuffer cbPass : register(b2)
 	float gTotalTime;
 	float gDeltaTime;
 	float4 gAmbientLight;
+
+	// Allow application to change fog parameters once per frame.
+	// For example, we may only use fog for certain times of day.
+	float4 gFogColor;
+	float gFogStart;
+	float gFogRange;
+	float2 cbPerObjectPad2;
 
 	// Indices [0, NUM_DIR_LIGHTS) are directional lights;
 	// indices [NUM_DIR_LIGHTS, NUM_DIR_LIGHTS+NUM_POINT_LIGHTS) are point lights;
@@ -102,13 +115,22 @@ VertexOut VS(VertexIn vin)
 
 float4 PS(VertexOut pin) : SV_Target
 {
-	float4 diffuseAlbedo = gDiffuseMap.Sample(gAnisotropicSampler, pin.TexC) * gDiffuseAlbedo;
+    float4 diffuseAlbedo = gDiffuseMap.Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
+	
+#ifdef ALPHA_TEST
+	// Discard pixel if texture alpha < 0.1.  We do this test as soon 
+	// as possible in the shader so that we can potentially exit the
+	// shader early, thereby skipping the rest of the shader code.
+	clip(diffuseAlbedo.a - 0.1f);
+#endif
 
 	// Interpolating normal can unnormalize it, so renormalize it.
 	pin.NormalW = normalize(pin.NormalW);
 
-	// Vector from point being lit to eye. 
-	float3 toEyeW = normalize(gEyePosW - pin.PosW);
+    // Vector from point being lit to eye. 
+	float3 toEyeW = gEyePosW - pin.PosW;
+	float distToEye = length(toEyeW);
+	toEyeW /= distToEye; // normalize
 
 	// Light terms.
 	float4 ambient = gAmbientLight * diffuseAlbedo;
@@ -120,9 +142,13 @@ float4 PS(VertexOut pin) : SV_Target
 		pin.NormalW, toEyeW, shadowFactor);
 
 	float4 litColor = ambient + directLight;
+#ifdef FOG
+	float fogAmount = saturate((distToEye - gFogStart) / gFogRange);
+	litColor = lerp(litColor, gFogColor, fogAmount);
+#endif
 
-	// Common convention to take alpha from diffuse material.
-	litColor.a = diffuseAlbedo.a;
+    // Common convention to take alpha from diffuse albedo.
+    litColor.a = diffuseAlbedo.a;
 
 	return litColor;
 }

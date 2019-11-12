@@ -2,6 +2,12 @@
 #include "../FBCommon/IRefCounted.h"
 namespace fb
 {
+	typedef struct _SHADER_MACRO
+	{
+		const char* Name;
+		const char* Definition;
+	} 	FShaderMacro;
+
 	enum class EShaderType
 	{
 		PixelShader,
@@ -10,12 +16,6 @@ namespace fb
 		HullShader,
 		DomainShader,
 		ComputeShader
-	};
-#define FB_SHADER_MACRO_STRING_LENGTH 256
-	struct FShaderMacro
-	{
-		char Name[FB_SHADER_MACRO_STRING_LENGTH];
-		char Def[FB_SHADER_MACRO_STRING_LENGTH];
 	};
 
 	FBDeclareIntrusivePointer(IShader);

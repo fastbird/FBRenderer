@@ -61,7 +61,7 @@ namespace fb
 		virtual PSOID CreateGraphicsPipelineState(const FPSODesc& psoDesc) override;
 		virtual void DestroyGraphicsPipelineState(PSOID psoid) override;
 		virtual IDescriptorHeap* CreateDescriptorHeap(EDescriptorHeapType type, UINT count) override;
-		virtual IShader* CompileShader(const wchar_t* filepath, FShaderMacro* macros, int numMacros, 
+		virtual IShader* CompileShader(const wchar_t* filepath, const FShaderMacro* macros,
 			EShaderType shaderType, const char* entryFunctionName) override;
 		virtual ITexture* LoadTexture(const wchar_t* filepath) override;
 		virtual EDataFormat GetBackBufferFormat() const override;
@@ -95,7 +95,7 @@ namespace fb
 		virtual void ResourceBarrier_Backbuffer_PresentToRenderTarget() override;
 		virtual void ResourceBarrier_Backbuffer_RenderTargetToPresent() override;
 		virtual void SetViewportAndScissor(int x, int y, UINT width, UINT height) override;
-		virtual void ClearRenderTargetDepthStencil() override;
+		virtual void ClearRenderTargetDepthStencil(float clearColor[4]) override;
 		virtual void SetDefaultRenderTargets() override;
 		virtual UINT64 SignalFence() override;
 

@@ -36,6 +36,12 @@ struct PassConstants
 	float DeltaTime = 0.0f;
 
 	glm::vec4 AmbientLight = { 0.0f, 0.0f, 0.0f, 1.0f };
+
+	glm::vec4 FogColor = { 0.7f, 0.7f, 0.7f, 1.0f };
+	float gFogStart = 5.0f;
+	float gFogRange = 150.0f;
+	glm::vec2 cbPerObjectPad2;
+
 	// Indices [0, NUM_DIR_LIGHTS) are directional lights;
 	// indices [NUM_DIR_LIGHTS, NUM_DIR_LIGHTS+NUM_POINT_LIGHTS) are point lights;
 	// indices [NUM_DIR_LIGHTS+NUM_POINT_LIGHTS, NUM_DIR_LIGHTS+NUM_POINT_LIGHT+NUM_SPOT_LIGHTS)

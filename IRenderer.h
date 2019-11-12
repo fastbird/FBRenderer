@@ -44,7 +44,7 @@ namespace fb
 		virtual PSOID CreateGraphicsPipelineState(const FPSODesc& psoDesc) = 0;
 		virtual void DestroyGraphicsPipelineState(PSOID psoid) = 0;
 		virtual IDescriptorHeap* CreateDescriptorHeap(EDescriptorHeapType type, UINT count) = 0;
-		virtual IShader* CompileShader(const wchar_t* filepath, FShaderMacro* macros, int numMacros, EShaderType shaderType, const char* entryFunctionName) = 0;
+		virtual IShader* CompileShader(const wchar_t* filepath, const FShaderMacro* macros, EShaderType shaderType, const char* entryFunctionName) = 0;
 		virtual ITexture* LoadTexture(const wchar_t* filepath) = 0;
 		virtual EDataFormat GetBackBufferFormat() const = 0;
 		virtual EDataFormat GetDepthStencilFormat() const = 0;
@@ -78,7 +78,7 @@ namespace fb
 		virtual void ResourceBarrier_Backbuffer_PresentToRenderTarget() = 0;
 		virtual void ResourceBarrier_Backbuffer_RenderTargetToPresent() = 0;
 		virtual void SetViewportAndScissor(int x, int y, UINT width, UINT height) = 0;
-		virtual void ClearRenderTargetDepthStencil() = 0;
+		virtual void ClearRenderTargetDepthStencil(float clearColor[4]) = 0;
 		virtual void SetDefaultRenderTargets() = 0;		
 		virtual UINT64 SignalFence() = 0;
 		

@@ -71,6 +71,7 @@ std::unordered_map<std::string, fb::ITextureIPtr> Textures;
 std::vector<std::unique_ptr<RenderItem>> AllRitems;
 fb::IDescriptorHeapIPtr DescriptorHeap;
 UINT Num_CBV_SRV_UAV = 3;
+PassConstants MainPassConstants;
 enum class ERenderLayer : int
 {
 	Opaque = 0,
@@ -623,13 +624,12 @@ void Update(float dt)
 		gAxisRenderer->SetCameraPos(glm::vec3(x, y, z));
 	}
 	
-	PassConstants pc;
-	pc.ViewProj = glm::transpose(ProjMat * ViewMat);
-	pc.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
+	MainPassConstants.ViewProj = glm::transpose(ProjMat * ViewMat);
+	MainPassConstants.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
 	glm::vec3 lightDir = -SphericalToCartesian(1.0f, 1.25f * glm::pi<float>(), glm::four_over_pi<float>());
-	pc.Lights[0].Direction = lightDir;
-	pc.Lights[0].Strength = { 1.0f, 1.0f, 0.9f };
-	curFR.CBPerFrame->CopyData(0, &pc);
+	MainPassConstants.Lights[0].Direction = lightDir;
+	MainPassConstants.Lights[0].Strength = { 1.0f, 1.0f, 0.9f };
+	curFR.CBPerFrame->CopyData(0, &MainPassConstants);
 
 	AnimateMaterials(dt);
 	UpdateObjectCBs(dt, curFR);
@@ -689,17 +689,25 @@ void OnMouseUp(WPARAM btnState, int x, int y)
 
 void BuildShadersAndInputLayout()
 {
-	Shaders["standardVS"] = gRenderer->CompileShader(L"Shaders/SimpleShader.hlsl", nullptr, 0, fb::EShaderType::VertexShader, "VS");
-	Shaders["opaquePS"] = gRenderer->CompileShader(L"Shaders/SimpleShader.hlsl", nullptr, 0, fb::EShaderType::PixelShader, "PS");
+	Shaders["axisVS"] = gRenderer->CompileShader(L"Shaders/Axis.hlsl", nullptr, fb::EShaderType::VertexShader, "VS");
+	Shaders["axisPS"] = gRenderer->CompileShader(L"Shaders/Axis.hlsl", nullptr, fb::EShaderType::PixelShader, "PS");
 
-	Shaders["axisVS"] = gRenderer->CompileShader(L"Shaders/Axis.hlsl", nullptr, 0, fb::EShaderType::VertexShader, "VS");
-	Shaders["axisPS"] = gRenderer->CompileShader(L"Shaders/Axis.hlsl", nullptr, 0, fb::EShaderType::PixelShader, "PS");
+	const fb::FShaderMacro defines[] =
+	{
+		"FOG", "1",
+		NULL, NULL
+	};
 
-	Shaders["lightingVS"] = gRenderer->CompileShader(L"Shaders/DefaultLight.hlsl", nullptr, 0, fb::EShaderType::VertexShader, "VS");
-	Shaders["lightingPS"] = gRenderer->CompileShader(L"Shaders/DefaultLight.hlsl", nullptr, 0, fb::EShaderType::PixelShader, "PS");
+	const fb::FShaderMacro alphaTestDefines[] =
+	{
+		"FOG", "1",
+		"ALPHA_TEST", "1",
+		NULL, NULL
+	};
 
-	Shaders["crateVS"] = gRenderer->CompileShader(L"Shaders/Default.hlsl", nullptr, 0, fb::EShaderType::VertexShader, "VS");
-	Shaders["cratePS"] = gRenderer->CompileShader(L"Shaders/Default.hlsl", nullptr, 0, fb::EShaderType::PixelShader, "PS");
+	Shaders["standardVS"] = gRenderer->CompileShader(L"Shaders/Default.hlsl", nullptr, fb::EShaderType::VertexShader, "VS");
+	Shaders["opaquePS"] = gRenderer->CompileShader(L"Shaders/Default.hlsl", defines, fb::EShaderType::PixelShader, "PS");
+	Shaders["alphaTestedPS"] = gRenderer->CompileShader(L"Shaders\\Default.hlsl", alphaTestDefines, fb::EShaderType::PixelShader, "PS");
 
 	InputLayout = {
 		{ "POSITION", 0, fb::EDataFormat::R32G32B32_FLOAT, 0, 0, fb::EInputClassification::PerVertexData, 0 },
@@ -825,13 +833,13 @@ void BuildPSO()
 	psoDesc.pRootSignature = LightingRootSig;
 	psoDesc.VS =
 	{
-		reinterpret_cast<BYTE*>(Shaders["crateVS"]->GetByteCode()),
-		Shaders["crateVS"]->Size()
+		reinterpret_cast<BYTE*>(Shaders["standardVS"]->GetByteCode()),
+		Shaders["standardVS"]->Size()
 	};
 	psoDesc.PS =
 	{
-		reinterpret_cast<BYTE*>(Shaders["cratePS"]->GetByteCode()),
-		Shaders["cratePS"]->Size()
+		reinterpret_cast<BYTE*>(Shaders["opaquePS"]->GetByteCode()),
+		Shaders["opaquePS"]->Size()
 	};
 	//psoDesc.RasterizerState
 	//psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
@@ -1162,7 +1170,7 @@ void Draw(float dt)
 	}
 	gRenderer->SetViewportAndScissor(0, 0, Width, Height);
 	gRenderer->ResourceBarrier_Backbuffer_PresentToRenderTarget();
-	gRenderer->ClearRenderTargetDepthStencil();
+	gRenderer->ClearRenderTargetDepthStencil((float*)&MainPassConstants.FogColor);
 	gRenderer->SetDefaultRenderTargets();
 
 	if (DescriptorHeap)
