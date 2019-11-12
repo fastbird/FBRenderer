@@ -475,7 +475,7 @@ IRootSignature* RendererD3D12::CreateRootSignature(const char* definition)
 		{
 			assert(paramItem.size() == 4);
 			int numDescriptors = atoi(std::string(paramItem[1]).c_str());
-			int gpuIndex = atoi(std::string(paramItem[2]).c_str());
+			int baseShaderRegister = atoi(std::string(paramItem[2]).c_str());
 			descriptorRanges.push_back(new CD3DX12_DESCRIPTOR_RANGE);
 			CD3DX12_DESCRIPTOR_RANGE* descriptorRange = descriptorRanges.back();
 			D3D12_DESCRIPTOR_RANGE_TYPE rangeType;
@@ -488,7 +488,7 @@ IRootSignature* RendererD3D12::CreateRootSignature(const char* definition)
 			else
 				throw "Unknown descriptor range type found!";
 				
-			descriptorRange->Init(rangeType, numDescriptors, gpuIndex);
+			descriptorRange->Init(rangeType, numDescriptors, baseShaderRegister);
 			slotRootParameter[cpuIndex].InitAsDescriptorTable(1, descriptorRange);
 		}
 		else if (paramItem[0] == std::string_view(RootDescriptorCBVName))

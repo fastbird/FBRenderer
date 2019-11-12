@@ -294,7 +294,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    SimpleBoxRootSig = gRenderer->CreateRootSignature("DTable,1,0,CBV");
    CBVRootSig = gRenderer->CreateRootSignature("RootCBV,0;RootCBV,1;");
    // per object, material, per frame, texture
-   LightingRootSig = gRenderer->CreateRootSignature("RootCBV,0;RootCBV,1;RootCBV,2;DTable,1,0,SRV");
+   LightingRootSig = gRenderer->CreateRootSignature("RootCBV,0;RootCBV,1;RootCBV,2;DTable,3,0,SRV");
 
    std::wcout << L"Root sig." << std::endl;
 
@@ -1016,7 +1016,8 @@ void BuildMaterials()
 	auto water = std::make_unique<Material>();
 	water->Name = "water";
 	water->MatCBIndex = 1;
-	water->DiffuseAlbedo = glm::vec4(0.0f, 0.2f, 0.6f, 1.0f);
+	//water->DiffuseAlbedo = glm::vec4(0.0f, 0.2f, 0.6f, 1.0f);
+	water->DiffuseAlbedo = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
 	water->DiffuseSrvHeapIndex = 1;
 	water->FresnelR0 = glm::vec3(0.02f, 0.02f, 0.02f);
 	water->Roughness = 0.0f;
@@ -1028,27 +1029,13 @@ void BuildMaterials()
 	crateMat->DiffuseSrvHeapIndex = 2;
 	crateMat->DiffuseAlbedo = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
 	crateMat->FresnelR0 = glm::vec3(0.1f, 0.1f, 0.1f);
-	crateMat->Roughness = 1.0f;
+	crateMat->Roughness = 0.99999f;
 	Materials[crateMat->Name] = std::move(crateMat);
 
 }
 
 void BuildRenderItems()
 {
-	auto crateItem = std::make_unique<RenderItem>();
-	crateItem->ObjectCBIndex = 0;
-	auto crateGeo = Geometries["crateGeo"].get();
-	crateItem->Mat = Materials["crate"].get();
-	crateItem->World = glm::scale(glm::vec3{ 5.0f, 5.0f, 5.0f });
-	crateItem->VB = crateGeo->VertexBuffer;
-	crateItem->IB = crateGeo->IndexBuffer;
-	crateItem->PrimitiveTopology = fb::EPrimitiveTopology::TRIANGLELIST;
-	crateItem->IndexCount = crateGeo->DrawArgs["crate"].IndexCount;
-	crateItem->StartIndexLocation = crateGeo->DrawArgs["crate"].StartIndexLocation;
-	crateItem->BaseVertexLocation = crateGeo->DrawArgs["crate"].BaseVertexLocation;
-	RenderItemLayers[(int)ERenderLayer::Opaque].push_back(crateItem.get());
-	AllRitems.push_back(std::move(crateItem));
-
 	auto wavesRitem = std::make_unique<RenderItem>();
 	wavesRitem->ObjectCBIndex = 0;
 	auto waterGeo = Geometries["waterGeo"].get();
@@ -1077,6 +1064,20 @@ void BuildRenderItems()
 	gridRitem->BaseVertexLocation = landGeo->DrawArgs["grid"].BaseVertexLocation;
 	RenderItemLayers[(int)ERenderLayer::Opaque].push_back(gridRitem.get());
 	AllRitems.push_back(std::move(gridRitem));
+
+	auto crateItem = std::make_unique<RenderItem>();
+	crateItem->ObjectCBIndex = 2;
+	auto crateGeo = Geometries["crateGeo"].get();
+	crateItem->Mat = Materials["crate"].get();
+	crateItem->World = glm::scale(glm::vec3{ 5.0f, 5.0f, 5.0f });
+	crateItem->VB = crateGeo->VertexBuffer;
+	crateItem->IB = crateGeo->IndexBuffer;
+	crateItem->PrimitiveTopology = fb::EPrimitiveTopology::TRIANGLELIST;
+	crateItem->IndexCount = crateGeo->DrawArgs["crate"].IndexCount;
+	crateItem->StartIndexLocation = crateGeo->DrawArgs["crate"].StartIndexLocation;
+	crateItem->BaseVertexLocation = crateGeo->DrawArgs["crate"].BaseVertexLocation;
+	RenderItemLayers[(int)ERenderLayer::Opaque].push_back(crateItem.get());
+	AllRitems.push_back(std::move(crateItem));
 }
 
 void DestroyRenderItems()
