@@ -46,18 +46,3 @@ void UploadBuffer::CopyData(UINT elementIndex, void* elementData)
 {
 	memcpy(&MappedData[elementIndex * ElementSize], elementData, ElementSizeBeforeAligned);
 }
-
-//void UploadBuffer::CreateCBV(UINT elementIndex, EDescriptorHeapType heapType, UINT heapIndex)
-//{
-//	assert(heapType == EDescriptorHeapType::Default);
-//	D3D12_GPU_VIRTUAL_ADDRESS cbAddress = Resource->GetGPUVirtualAddress();
-//	cbAddress += (UINT64)elementIndex * (UINT64)ElementSize;
-//	
-//	auto descriptorHeap = gRendererD3D12->GetDefaultDescriptorHeap();
-//	auto handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(descriptorHeap->GetCPUDescriptorHandleForHeapStart());
-//	handle.Offset(heapIndex, gRendererD3D12->GetCbvSrvUavDescriptorSize());
-//	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
-//	cbvDesc.BufferLocation = cbAddress;
-//	cbvDesc.SizeInBytes = ElementSize;
-//	gRendererD3D12->GetDevice()->CreateConstantBufferView(&cbvDesc, handle);
-//}

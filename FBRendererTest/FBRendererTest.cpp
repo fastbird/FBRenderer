@@ -166,7 +166,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_FBRENDERERTEST));
 
 	MSG msg = {0};
-    // Main message loop:
+	static auto time = std::chrono::high_resolution_clock::now();
+	// Main message loop:
 	while (msg.message != WM_QUIT)
 	{
 		// If there are Window messages then process them.
@@ -178,8 +179,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		// Otherwise, do animation/game stuff.
 		else
 		{
-			static auto time = std::chrono::high_resolution_clock::now();
-			auto dt = std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - time).count();
+			auto now = std::chrono::high_resolution_clock::now();
+			auto dt = std::chrono::duration<float>(now - time).count();
+			time = now;
 			Update(dt);
 			if (gRenderer)
 			{
@@ -510,12 +512,11 @@ void UpdateMaterialCBs(float dt, FFrameResource& curFR)
 		Material* mat = e.second.get();
 		if (mat->NumFramesDirty > 0)
 		{
-			glm::mat4 matTransform = glm::transpose(mat->MatTransform);
-
 			MaterialConstants matConstants;
 			matConstants.DiffuseAlbedo = mat->DiffuseAlbedo;
 			matConstants.FresnelR0 = mat->FresnelR0;
 			matConstants.Roughness = mat->Roughness;
+			glm::mat4 matTransform = glm::transpose(mat->MatTransform);
 			matConstants.MatTransform = matTransform;
 
 			currMaterialCB->CopyData(mat->MatCBIndex, &matConstants);
@@ -526,7 +527,12 @@ void UpdateMaterialCBs(float dt, FFrameResource& curFR)
 	}
 }
 
-void UpdateWaves(float dt)
+void Print(const glm::vec3& v)
+{
+	std::wcout << v.x << L"," << v.y << L"," << v.z << std::endl;
+}
+
+void UpdateWaves(float dt, FFrameResource& curFR)
 {
 	static float totalTime = 0;
 	totalTime += dt;
@@ -546,7 +552,6 @@ void UpdateWaves(float dt)
 
 	// Update the wave simulation.
 	gWaves->Update(dt);
-	auto& curFR = GetFrameResource(CurrentFrameResourceIndex);
 	// Update the wave vertex buffer with the new solution.
 	auto currWavesVB = curFR.WavesVB.get();
 	for (int i = 0; i < gWaves->VertexCount(); ++i)
@@ -575,11 +580,12 @@ glm::vec3 SphericalToCartesian(float radius, float theta, float phi)
 
 void AnimateMaterials(float dt)
 {
-	// Scroll the water material texture coordinates.
 	auto waterMat = Materials["water"].get();
+	if (!waterMat)
+		return;
 
-	float& tu = waterMat->MatTransform[0][3];
-	float& tv = waterMat->MatTransform[1][3];
+	float& tu = waterMat->MatTransform[3][0];
+	float& tv = waterMat->MatTransform[3][1];
 
 	tu += 0.1f * dt;
 	tv += 0.02f * dt;
@@ -589,9 +595,6 @@ void AnimateMaterials(float dt)
 
 	if (tv >= 1.0f)
 		tv -= 1.0f;
-
-	waterMat->MatTransform[0][3] = tu;
-	waterMat->MatTransform[1][3] = tv;
 
 	// Material has changed, so need to update cbuffer.
 	waterMat->NumFramesDirty = NUM_SWAPCHAIN_BUFFERS;
@@ -631,7 +634,7 @@ void Update(float dt)
 	AnimateMaterials(dt);
 	UpdateObjectCBs(dt, curFR);
 	UpdateMaterialCBs(dt, curFR);
-	UpdateWaves(dt);
+	UpdateWaves(dt, curFR);
 }
 
 void OnMouseMove(WPARAM btnState, int x, int y)
