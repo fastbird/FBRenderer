@@ -15,7 +15,7 @@ struct MaterialConstants
 	glm::vec4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
 	glm::vec3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
 	float Roughness = .25f;
-	glm::mat4 MatTransform;
+	glm::mat4 MatTransform = glm::mat4(1.0f);
 };
 
 struct PassConstants
@@ -57,6 +57,6 @@ extern std::vector<FFrameResource> FrameResources;
 
 void BuildFrameResources();
 void DestroyFrameResources();
-void BuildConstantBuffers(int numObj);
+void BuildConstantBuffers(int numObj, int numMaterials);
 inline FFrameResource& GetFrameResource(UINT index) { return FrameResources[index]; }
 FFrameResource& GetFrameResource_WaitAvailable(UINT index);

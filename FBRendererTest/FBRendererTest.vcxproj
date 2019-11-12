@@ -118,9 +118,9 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy ..\x64\Debug\*.exe ..\App\ /Y /I /S
-xcopy Shaders ..\App\Shaders /Y /I /S
-xcopy Textures ..\App\Textures /Y /I /S</Command>
+      <Command>xcopy ..\x64\Debug\*.exe ..\App\ /Y /I /S /D
+xcopy Shaders ..\App\Shaders /Y /I /S /D
+xcopy Textures ..\App\Textures /Y /I /S /D</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -162,6 +162,9 @@ xcopy Textures ..\App\Textures /Y /I /S</Command>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
+    <PostBuildEvent>
+      <Command>xcopy ..\x64\Debug\*.exe ..\App\ /Y /I /S /D</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="FBRendererTest.h" />

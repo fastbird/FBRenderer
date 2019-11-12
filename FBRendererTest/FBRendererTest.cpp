@@ -70,7 +70,7 @@ std::unordered_map<std::string, std::unique_ptr<Material>> Materials;
 std::unordered_map<std::string, fb::ITextureIPtr> Textures;
 std::vector<std::unique_ptr<RenderItem>> AllRitems;
 fb::IDescriptorHeapIPtr DescriptorHeap;
-UINT Num_CBV_SRV_UAV = 1;
+UINT Num_CBV_SRV_UAV = 3;
 enum class ERenderLayer : int
 {
 	Opaque = 0,
@@ -289,7 +289,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    BuildRenderItems();
 
-   BuildConstantBuffers((int)RenderItemLayers[(int)ERenderLayer::Opaque].size());
+   BuildConstantBuffers((int)RenderItemLayers[(int)ERenderLayer::Opaque].size(), (int)Materials.size());
    
    SimpleBoxRootSig = gRenderer->CreateRootSignature("DTable,1,0,CBV");
    CBVRootSig = gRenderer->CreateRootSignature("RootCBV,0;RootCBV,1;");
@@ -490,6 +490,7 @@ void UpdateObjectCBs(float dt, FFrameResource& curFR)
 		{
 			ObjectConstants objConstants;
 			objConstants.World = glm::transpose(e->World);
+			objConstants.TexTransform = glm::transpose(e->TexTransform);
 
 			currObjectCB->CopyData(e->ObjectCBIndex, &objConstants);
 
@@ -515,6 +516,7 @@ void UpdateMaterialCBs(float dt, FFrameResource& curFR)
 			matConstants.DiffuseAlbedo = mat->DiffuseAlbedo;
 			matConstants.FresnelR0 = mat->FresnelR0;
 			matConstants.Roughness = mat->Roughness;
+			matConstants.MatTransform = matTransform;
 
 			currMaterialCB->CopyData(mat->MatCBIndex, &matConstants);
 
@@ -553,7 +555,8 @@ void UpdateWaves(float dt)
 
 		v.Pos = gWaves->Position(i);
 		v.Normal = gWaves->Normal(i);
-
+		v.TexC.x = 0.5f + v.Pos.x / gWaves->Width();
+		v.TexC.y = 0.5f - v.Pos.z / gWaves->Depth();
 		currWavesVB->CopyData(i, &v);
 	}
 
@@ -568,6 +571,30 @@ glm::vec3 SphericalToCartesian(float radius, float theta, float phi)
 		radius * sinf(phi) * cosf(theta),
 		radius * cosf(phi),
 		radius * sinf(phi) * sinf(theta));
+}
+
+void AnimateMaterials(float dt)
+{
+	// Scroll the water material texture coordinates.
+	auto waterMat = Materials["water"].get();
+
+	float& tu = waterMat->MatTransform[0][3];
+	float& tv = waterMat->MatTransform[1][3];
+
+	tu += 0.1f * dt;
+	tv += 0.02f * dt;
+
+	if (tu >= 1.0f)
+		tu -= 1.0f;
+
+	if (tv >= 1.0f)
+		tv -= 1.0f;
+
+	waterMat->MatTransform[0][3] = tu;
+	waterMat->MatTransform[1][3] = tv;
+
+	// Material has changed, so need to update cbuffer.
+	waterMat->NumFramesDirty = NUM_SWAPCHAIN_BUFFERS;
 }
 
 void Update(float dt)
@@ -596,11 +623,12 @@ void Update(float dt)
 	PassConstants pc;
 	pc.ViewProj = glm::transpose(ProjMat * ViewMat);
 	pc.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
-	glm::vec3 lightDir = -SphericalToCartesian(1.0f, 1.25 * glm::pi<float>(), glm::four_over_pi<float>());
+	glm::vec3 lightDir = -SphericalToCartesian(1.0f, 1.25f * glm::pi<float>(), glm::four_over_pi<float>());
 	pc.Lights[0].Direction = lightDir;
 	pc.Lights[0].Strength = { 1.0f, 1.0f, 0.9f };
 	curFR.CBPerFrame->CopyData(0, &pc);
 
+	AnimateMaterials(dt);
 	UpdateObjectCBs(dt, curFR);
 	UpdateMaterialCBs(dt, curFR);
 	UpdateWaves(dt);
@@ -717,6 +745,7 @@ void BuildLandGeometry()
 		vertices[i].Pos = p;
 		vertices[i].Pos.y = GetHillsHeight(p.x, p.z);
 		vertices[i].Normal = GetHillsNormal(p.x, p.z);
+		vertices[i].TexC = grid.Vertices[i].TexC;
 	}
 
 	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
@@ -775,18 +804,14 @@ void BuildWavesGeometryBuffers()
 
 	auto geo = std::make_unique<MeshGeometry>();
 	geo->Name = "waterGeo";
-
 	// Set dynamically.
 	geo->VertexBuffer = gRenderer->CreateVertexBuffer(nullptr, 0, 0, false);
 	geo->IndexBuffer = gRenderer->CreateIndexBuffer(indices.data(), ibByteSize, fb::EDataFormat::R16_UINT, false);
-
 	SubmeshGeometry submesh;
 	submesh.IndexCount = (UINT)indices.size();
 	submesh.StartIndexLocation = 0;
 	submesh.BaseVertexLocation = 0;
-
 	geo->DrawArgs["grid"] = submesh;
-
 	Geometries["waterGeo"] = std::move(geo);
 }
 
@@ -981,8 +1006,10 @@ void BuildMaterials()
 	grass->Name = "grass";
 	grass->MatCBIndex = 0;
 	grass->DiffuseAlbedo = glm::vec4(1.f, 1.0f, 1.0f, 1.0f);
+	grass->DiffuseSrvHeapIndex = 0;
 	grass->FresnelR0 = glm::vec3(0.01f, 0.01f, 0.01f);
 	grass->Roughness = 0.125f;
+	Materials[grass->Name] = std::move(grass);
 
 	// This is not a good water material definition, but we do not have all the rendering
 	// tools we need (transparency, environment reflection), so we fake it for now.
@@ -990,11 +1017,20 @@ void BuildMaterials()
 	water->Name = "water";
 	water->MatCBIndex = 1;
 	water->DiffuseAlbedo = glm::vec4(0.0f, 0.2f, 0.6f, 1.0f);
-	water->FresnelR0 = glm::vec3(0.1f, 0.1f, 0.1f);
+	water->DiffuseSrvHeapIndex = 1;
+	water->FresnelR0 = glm::vec3(0.02f, 0.02f, 0.02f);
 	water->Roughness = 0.0f;
+	Materials[water->Name] = std::move(water);
 
-	Materials["grass"] = std::move(grass);
-	Materials["water"] = std::move(water);
+	auto crateMat = std::make_unique<Material>();
+	crateMat->Name = "crate";
+	crateMat->MatCBIndex = 2;
+	crateMat->DiffuseSrvHeapIndex = 2;
+	crateMat->DiffuseAlbedo = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+	crateMat->FresnelR0 = glm::vec3(0.1f, 0.1f, 0.1f);
+	crateMat->Roughness = 1.0f;
+	Materials[crateMat->Name] = std::move(crateMat);
+
 }
 
 void BuildRenderItems()
@@ -1002,7 +1038,8 @@ void BuildRenderItems()
 	auto crateItem = std::make_unique<RenderItem>();
 	crateItem->ObjectCBIndex = 0;
 	auto crateGeo = Geometries["crateGeo"].get();
-	crateItem->Mat = Materials["grass"].get();
+	crateItem->Mat = Materials["crate"].get();
+	crateItem->World = glm::scale(glm::vec3{ 5.0f, 5.0f, 5.0f });
 	crateItem->VB = crateGeo->VertexBuffer;
 	crateItem->IB = crateGeo->IndexBuffer;
 	crateItem->PrimitiveTopology = fb::EPrimitiveTopology::TRIANGLELIST;
@@ -1012,36 +1049,34 @@ void BuildRenderItems()
 	RenderItemLayers[(int)ERenderLayer::Opaque].push_back(crateItem.get());
 	AllRitems.push_back(std::move(crateItem));
 
-	/*auto wavesRitem = std::make_unique<RenderItem>();
+	auto wavesRitem = std::make_unique<RenderItem>();
 	wavesRitem->ObjectCBIndex = 0;
 	auto waterGeo = Geometries["waterGeo"].get();
 	wavesRitem->Mat = Materials["water"].get();
+	wavesRitem->TexTransform = glm::scale(glm::vec3{ 5.0f, 5.0f, 1.0f });
 	wavesRitem->VB = waterGeo->VertexBuffer;
 	wavesRitem->IB = waterGeo->IndexBuffer;
 	wavesRitem->PrimitiveTopology =  fb::EPrimitiveTopology::TRIANGLELIST;
 	wavesRitem->IndexCount = waterGeo->DrawArgs["grid"].IndexCount;
 	wavesRitem->StartIndexLocation = waterGeo->DrawArgs["grid"].StartIndexLocation;
 	wavesRitem->BaseVertexLocation = waterGeo->DrawArgs["grid"].BaseVertexLocation;
-
 	gWavesRitem = wavesRitem.get();
-
 	RenderItemLayers[(int)ERenderLayer::Opaque].push_back(wavesRitem.get());
+	AllRitems.push_back(std::move(wavesRitem));
 
 	auto gridRitem = std::make_unique<RenderItem>();
 	gridRitem->ObjectCBIndex = 1;
 	auto landGeo = Geometries["landGeo"].get();
 	gridRitem->Mat = Materials["grass"].get();
+	gridRitem->TexTransform = glm::scale(glm::vec3{ 5.0f, 5.0f, 1.0f });
 	gridRitem->VB = landGeo->VertexBuffer;
 	gridRitem->IB = landGeo->IndexBuffer;
 	gridRitem->PrimitiveTopology = fb::EPrimitiveTopology::TRIANGLELIST;
 	gridRitem->IndexCount = landGeo->DrawArgs["grid"].IndexCount;
 	gridRitem->StartIndexLocation = landGeo->DrawArgs["grid"].StartIndexLocation;
 	gridRitem->BaseVertexLocation = landGeo->DrawArgs["grid"].BaseVertexLocation;
-
 	RenderItemLayers[(int)ERenderLayer::Opaque].push_back(gridRitem.get());
-
-	AllRitems.push_back(std::move(wavesRitem));
-	AllRitems.push_back(std::move(gridRitem));*/
+	AllRitems.push_back(std::move(gridRitem));
 }
 
 void DestroyRenderItems()
@@ -1062,6 +1097,8 @@ void BuildWaves()
 
 void LoadTextures()
 {
+	Textures["grassTex"] = gRenderer->LoadTexture(L"Textures/grass.dds");
+	Textures["waterTex"] = gRenderer->LoadTexture(L"Textures/water1.dds");
 	Textures["woodCrateTex"] = gRenderer->LoadTexture(L"Textures/WoodCrate01.dds");
 }
 
@@ -1071,7 +1108,11 @@ void BuildShaderResourceView()
 		DescriptorHeap = gRenderer->CreateDescriptorHeap(fb::EDescriptorHeapType::CBV_SRV_UAV, Num_CBV_SRV_UAV);
 
 	assert(Textures["woodCrateTex"]);
-	auto result = DescriptorHeap->CreateDescriptor(0, Textures["woodCrateTex"]);
+	auto result = DescriptorHeap->CreateDescriptor(0, Textures["grassTex"]);
+	assert(result);
+	result = DescriptorHeap->CreateDescriptor(1, Textures["waterTex"]);
+	assert(result);
+	result = DescriptorHeap->CreateDescriptor(2, Textures["woodCrateTex"]);
 	assert(result);
 }
 
@@ -1096,11 +1137,9 @@ void DrawRenderItems()
 		assert(ri->Mat);
 		gRenderer->SetGraphicsRootConstantBufferView(1, curFR.CBPerMaterial, ri->Mat->MatCBIndex);
 		// index 2 is being used for Per-frame CB.
-
-		gRenderer->SetGraphicsRootDescriptorTable(3, DescriptorHeap, 0);
-
-		//UINT cbvIndex = (UINT)opaqueRenderItems.size() + ri->ConstantBufferIndex;
-		//gRenderer->SetGraphicsRootDescriptorTable(0, fb::EDescriptorHeapType::Default, cbvIndex);
+		if (ri->Mat->DiffuseSrvHeapIndex != -1) {
+			gRenderer->SetGraphicsRootDescriptorTable(3, DescriptorHeap, ri->Mat->DiffuseSrvHeapIndex);
+		}
 		gRenderer->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0 );
 	}
 }
@@ -1122,7 +1161,6 @@ void Draw(float dt)
 	gRenderer->ClearRenderTargetDepthStencil();
 	gRenderer->SetDefaultRenderTargets();
 
-	//gRenderer->BindDescriptorHeap(fb::EDescriptorHeapType::Default);
 	if (DescriptorHeap)
 		DescriptorHeap->Bind();
 	LightingRootSig->Bind();

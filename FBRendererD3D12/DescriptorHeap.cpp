@@ -7,7 +7,7 @@ using namespace fb;
 
 bool DescriptorHeap::CreateDescriptor(UINT heapIndex, ITextureIPtr texture)
 {
-	if (!DescriptorHeapD3D)
+	if (!DescriptorHeapD3D || !texture)
 		return false;
 
 	assert(Type == EDescriptorHeapType::CBV_SRV_UAV);

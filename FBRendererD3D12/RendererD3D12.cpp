@@ -489,7 +489,7 @@ IRootSignature* RendererD3D12::CreateRootSignature(const char* definition)
 				throw "Unknown descriptor range type found!";
 				
 			descriptorRange->Init(rangeType, numDescriptors, gpuIndex);
-			slotRootParameter[cpuIndex].InitAsDescriptorTable(numDescriptors, descriptorRange);
+			slotRootParameter[cpuIndex].InitAsDescriptorTable(1, descriptorRange);
 		}
 		else if (paramItem[0] == std::string_view(RootDescriptorCBVName))
 		{
