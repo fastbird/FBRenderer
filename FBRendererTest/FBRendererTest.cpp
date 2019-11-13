@@ -75,6 +75,7 @@ enum class ERenderLayer : int
 {
 	Opaque = 0,
 	AlphaTested,
+	AlphaBlended,
 	Count
 };
 
@@ -860,6 +861,21 @@ void BuildPSO()
 	alphaTestedPSODesc.RasterizerState.CullMode = fb::ECullMode::NONE;
 	PSOs["AlphaTested"] = gRenderer->CreateGraphicsPipelineState(alphaTestedPSODesc);
 
+	fb::FPSODesc alphaBlendedPSODesc = psoDesc;
+	fb::FRenderTargetBlendDesc blendDesc;
+	blendDesc.BlendEnable = true;
+	blendDesc.LogicOpEnable = false;
+	blendDesc.SrcBlend = fb::EBlend::SRC_ALPHA;
+	blendDesc.DestBlend = fb::EBlend::INV_SRC_ALPHA;
+	blendDesc.BlendOp = fb::EBlendOp::ADD;
+	blendDesc.SrcBlendAlpha = fb::EBlend::ONE;
+	blendDesc.DestBlendAlpha = fb::EBlend::ZERO;
+	blendDesc.BlendOpAlpha = fb::EBlendOp::ADD;
+	blendDesc.LogicOp = fb::ELogicOp::NOOP;
+	blendDesc.RenderTargetWriteMask = fb::EColorWriteEnable::ALL;
+	alphaBlendedPSODesc.BlendState.RenderTarget[0] = blendDesc;
+	PSOs["AlphaBlended"] = gRenderer->CreateGraphicsPipelineState(alphaBlendedPSODesc);
+
 	psoDesc.RasterizerState.FillMode = fb::EFillMode::WIREFRAME;
 	PSOs["Wireframe"] = gRenderer->CreateGraphicsPipelineState(psoDesc);
 }
@@ -1036,7 +1052,7 @@ void BuildMaterials()
 	water->Name = "water";
 	water->MatCBIndex = 1;
 	//water->DiffuseAlbedo = glm::vec4(0.0f, 0.2f, 0.6f, 1.0f);
-	water->DiffuseAlbedo = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+	water->DiffuseAlbedo = glm::vec4(1.0f, 1.0f, 1.0f, 0.5f);
 	water->DiffuseSrvHeapIndex = 1;
 	water->FresnelR0 = glm::vec3(0.02f, 0.02f, 0.02f);
 	water->Roughness = 0.0f;
@@ -1067,7 +1083,7 @@ void BuildRenderItems()
 	wavesRitem->StartIndexLocation = waterGeo->DrawArgs["grid"].StartIndexLocation;
 	wavesRitem->BaseVertexLocation = waterGeo->DrawArgs["grid"].BaseVertexLocation;
 	gWavesRitem = wavesRitem.get();
-	RenderItemLayers[(int)ERenderLayer::Opaque].push_back(wavesRitem.get());
+	RenderItemLayers[(int)ERenderLayer::AlphaBlended].push_back(wavesRitem.get());
 	AllRitems.push_back(std::move(wavesRitem));
 
 	auto gridRitem = std::make_unique<RenderItem>();
@@ -1198,6 +1214,12 @@ void Draw(float dt)
 	if (alphaTestedPSO != PSOs.end()) {
 		gRenderer->SetPipelineState(alphaTestedPSO->second);
 		DrawRenderItems(RenderItemLayers[(int)ERenderLayer::AlphaTested]);
+	}
+
+	auto alphaBlendedPSO = PSOs.find("AlphaBlended");
+	if (alphaBlendedPSO != PSOs.end()) {
+		gRenderer->SetPipelineState(alphaBlendedPSO->second);
+		DrawRenderItems(RenderItemLayers[(int)ERenderLayer::AlphaBlended]);
 	}
 
 	gAxisRenderer->Render();
