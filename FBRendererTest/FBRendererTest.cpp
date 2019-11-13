@@ -62,8 +62,7 @@ float Theta = 1.5f * glm::pi<float>();
 glm::mat4 WorldMat(1.0f), ViewMat(1.0f), ProjMat(1.0f);
 fb::IUploadBuffer* PerPassCBs = nullptr;
 POINT LastMousePos;
-fb::PSOID SimpleBoxPSO;
-fb::PSOID SimpleBoxPSOWireframe;
+std::unordered_map<std::string, fb::PSOID> PSOs;
 UINT CurrentFrameResourceIndex = 0;
 std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> Geometries;
 std::unordered_map<std::string, std::unique_ptr<Material>> Materials;
@@ -75,6 +74,7 @@ PassConstants MainPassConstants;
 enum class ERenderLayer : int
 {
 	Opaque = 0,
+	AlphaTested,
 	Count
 };
 
@@ -292,7 +292,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    BuildRenderItems();
 
-   BuildConstantBuffers((int)RenderItemLayers[(int)ERenderLayer::Opaque].size(), (int)Materials.size());
+   BuildConstantBuffers((int)AllRitems.size(), (int)Materials.size());
    
    SimpleBoxRootSig = gRenderer->CreateRootSignature("DTable,1,0,CBV");
    CBVRootSig = gRenderer->CreateRootSignature("RootCBV,0;RootCBV,1;");
@@ -842,19 +842,26 @@ void BuildPSO()
 		reinterpret_cast<BYTE*>(Shaders["opaquePS"]->GetByteCode()),
 		Shaders["opaquePS"]->Size()
 	};
-	//psoDesc.RasterizerState
-	//psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-	//psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-	psoDesc.RasterizerState.CullMode = fb::ECullMode::NONE;
 	psoDesc.PrimitiveTopologyType = fb::EPrimitiveTopologyType::TRIANGLE;
 	psoDesc.NumRenderTargets = 1;
+	psoDesc.RasterizerState.CullMode = fb::ECullMode::FRONT;
 	psoDesc.RTVFormats[0] = gRenderer->GetBackBufferFormat();
 	psoDesc.SampleDesc.Count = gRenderer->GetSampleCount();
 	psoDesc.SampleDesc.Quality = gRenderer->GetMsaaQuality();
 	psoDesc.DSVFormat = gRenderer->GetDepthStencilFormat();
-	SimpleBoxPSO = gRenderer->CreateGraphicsPipelineState(psoDesc);
+	PSOs["Default"] = gRenderer->CreateGraphicsPipelineState(psoDesc);
+
+	fb::FPSODesc alphaTestedPSODesc = psoDesc;
+	alphaTestedPSODesc.PS = 
+	{
+		reinterpret_cast<BYTE*>(Shaders["alphaTestedPS"]->GetByteCode()),
+		Shaders["alphaTestedPS"]->Size()
+	};
+	alphaTestedPSODesc.RasterizerState.CullMode = fb::ECullMode::NONE;
+	PSOs["AlphaTested"] = gRenderer->CreateGraphicsPipelineState(alphaTestedPSODesc);
+
 	psoDesc.RasterizerState.FillMode = fb::EFillMode::WIREFRAME;
-	SimpleBoxPSOWireframe = gRenderer->CreateGraphicsPipelineState(psoDesc);
+	PSOs["Wireframe"] = gRenderer->CreateGraphicsPipelineState(psoDesc);
 }
 
 void BuildShapeGeometry()
@@ -1088,7 +1095,7 @@ void BuildRenderItems()
 	crateItem->IndexCount = crateGeo->DrawArgs["crate"].IndexCount;
 	crateItem->StartIndexLocation = crateGeo->DrawArgs["crate"].StartIndexLocation;
 	crateItem->BaseVertexLocation = crateGeo->DrawArgs["crate"].BaseVertexLocation;
-	RenderItemLayers[(int)ERenderLayer::Opaque].push_back(crateItem.get());
+	RenderItemLayers[(int)ERenderLayer::AlphaTested].push_back(crateItem.get());
 	AllRitems.push_back(std::move(crateItem));
 }
 
@@ -1113,6 +1120,7 @@ void LoadTextures()
 	Textures["grassTex"] = gRenderer->LoadTexture(L"Textures/grass.dds");
 	Textures["waterTex"] = gRenderer->LoadTexture(L"Textures/water1.dds");
 	Textures["woodCrateTex"] = gRenderer->LoadTexture(L"Textures/WoodCrate01.dds");
+	Textures["wireFenceTex"] = gRenderer->LoadTexture(L"Textures/WireFence.dds");
 }
 
 void BuildShaderResourceView()
@@ -1125,19 +1133,18 @@ void BuildShaderResourceView()
 	assert(result);
 	result = DescriptorHeap->CreateDescriptor(1, Textures["waterTex"]);
 	assert(result);
-	result = DescriptorHeap->CreateDescriptor(2, Textures["woodCrateTex"]);
+	result = DescriptorHeap->CreateDescriptor(2, Textures["wireFenceTex"]);
 	assert(result);
 }
 
-void DrawRenderItems()
+void DrawRenderItems(const std::vector<RenderItem*>& ritems)
 {
 	fb::EPrimitiveTopology LastPrimitiveTopology = fb::EPrimitiveTopology::UNDEFINED;
 	auto& curFR = GetFrameResource(CurrentFrameResourceIndex);
-	auto& opaqueRenderItems = RenderItemLayers[(int)ERenderLayer::Opaque];
 	// For each render item...
-	for (size_t i = 0; i < opaqueRenderItems.size(); ++i)
+	for (size_t i = 0; i < ritems.size(); ++i)
 	{
-		auto ri = opaqueRenderItems[i];
+		auto ri = ritems[i];
 
 		ri->VB->Bind(0);
 		ri->IB->Bind();
@@ -1162,13 +1169,18 @@ void Draw(float dt)
 	auto& curFR = GetFrameResource(CurrentFrameResourceIndex);
 	auto cmdListAlloc = curFR.CommandAllocator;
 	cmdListAlloc->Reset();
+	auto defaultPSO = PSOs.find("Default");
+	if (defaultPSO == PSOs.end())
+		return;
 
 	if (IsWireframe) {
-		gRenderer->ResetCommandList(cmdListAlloc, SimpleBoxPSOWireframe);
+		auto wireFramePSO = PSOs.find("Wireframe");
+		gRenderer->ResetCommandList(cmdListAlloc, wireFramePSO->second);
 	}
 	else {
-		gRenderer->ResetCommandList(cmdListAlloc, SimpleBoxPSO);
+		gRenderer->ResetCommandList(cmdListAlloc, defaultPSO->second);
 	}
+
 	gRenderer->SetViewportAndScissor(0, 0, Width, Height);
 	gRenderer->ResourceBarrier_Backbuffer_PresentToRenderTarget();
 	gRenderer->ClearRenderTargetDepthStencil((float*)&MainPassConstants.FogColor);
@@ -1180,7 +1192,13 @@ void Draw(float dt)
 
 	gRenderer->SetGraphicsRootConstantBufferView(2, curFR.CBPerFrame, 0);
 
-	DrawRenderItems();
+	DrawRenderItems(RenderItemLayers[(int)ERenderLayer::Opaque]);
+
+	auto alphaTestedPSO = PSOs.find("AlphaTested");
+	if (alphaTestedPSO != PSOs.end()) {
+		gRenderer->SetPipelineState(alphaTestedPSO->second);
+		DrawRenderItems(RenderItemLayers[(int)ERenderLayer::AlphaTested]);
+	}
 
 	gAxisRenderer->Render();
 
