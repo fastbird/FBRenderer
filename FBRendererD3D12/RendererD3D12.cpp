@@ -14,6 +14,7 @@
 #include "../../FBCommon/Utility.h"
 #include "TextureLoader.h"
 #include "DescriptorHeap.h"
+#include "Samplers.h"
 
 using namespace fb;
 using Microsoft::WRL::ComPtr;
@@ -548,9 +549,10 @@ IRootSignature* RendererD3D12::CreateRootSignature(const char* definition)
 		++cpuIndex;
 	}
 
-	CD3DX12_STATIC_SAMPLER_DESC StaticSamplers[1];
-	StaticSamplers[0].Init(3, D3D12_FILTER_ANISOTROPIC);
-	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc((UINT)parameters.size(), slotRootParameter, 1, StaticSamplers,
+	/*CD3DX12_STATIC_SAMPLER_DESC StaticSamplers[1];
+	StaticSamplers[0].Init(3, D3D12_FILTER_ANISOTROPIC);*/
+	auto staticSamplers = GetStaticSamplers();
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc((UINT)parameters.size(), slotRootParameter, staticSamplers.size(), staticSamplers.data(),
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
 	ComPtr<ID3DBlob> serializedRootSig = nullptr;

@@ -629,6 +629,7 @@ void Update(float dt)
 	glm::vec3 lightDir = -SphericalToCartesian(1.0f, 1.25f * glm::pi<float>(), glm::four_over_pi<float>());
 	MainPassConstants.Lights[0].Direction = lightDir;
 	MainPassConstants.Lights[0].Strength = { 1.0f, 1.0f, 0.9f };
+	MainPassConstants.EyePosW = eyePos;
 	curFR.CBPerFrame->CopyData(0, &MainPassConstants);
 
 	AnimateMaterials(dt);
