@@ -1,6 +1,7 @@
 #pragma once
 #include "GPUBuffer.h"
 #include "../IRenderer.h"
+#include "ConverterD3D12.h"
 namespace fb
 {
 	class IndexBuffer : public GPUBuffer, public IIndexBuffer
@@ -15,7 +16,7 @@ namespace fb
 		virtual UINT GetElementCount() const override { return ElementCount; }
 		D3D12_INDEX_BUFFER_VIEW IndexBufferView() const
 		{
-			return D3D12_INDEX_BUFFER_VIEW{ Resource->GetGPUVirtualAddress(), Size, Format };
+			return D3D12_INDEX_BUFFER_VIEW{ Resource->GetGPUVirtualAddress(), Size, Convert(Format) };
 		}
 		virtual void Bind() override;
 	};

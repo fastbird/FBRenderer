@@ -63,6 +63,6 @@ extern std::vector<FFrameResource> FrameResources;
 
 void BuildFrameResources();
 void DestroyFrameResources();
-void BuildConstantBuffers(int numObj, int numMaterials);
+void BuildConstantBuffers(int numObj, int numMaterials, int numPassCB);
 inline FFrameResource& GetFrameResource(UINT index) { return FrameResources[index]; }
 FFrameResource& GetFrameResource_WaitAvailable(UINT index);

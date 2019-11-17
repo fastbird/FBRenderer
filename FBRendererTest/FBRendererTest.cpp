@@ -24,6 +24,10 @@ struct Vertex
 	glm::vec3 Normal;
 	glm::vec2 TexC;
 
+	Vertex()
+	{
+
+	}
 	Vertex(float x, float y, float z, float nx, float ny, float nz, float u, float v)
 		: Pos(x, y, z)
 		, Normal(nx, ny, nz)
@@ -66,6 +70,7 @@ fb::IRenderer* gRenderer = nullptr;
 float Radius = 30.0f;
 float Phi = glm::four_over_pi<float>();
 float Theta = 1.5f * glm::pi<float>();
+glm::vec3 gEyePos;
 glm::mat4 WorldMat(1.0f), ViewMat(1.0f), ProjMat(1.0f);
 fb::IUploadBuffer* PerPassCBs = nullptr;
 POINT LastMousePos;
@@ -78,11 +83,19 @@ std::vector<std::unique_ptr<RenderItem>> AllRitems;
 fb::IDescriptorHeapIPtr DescriptorHeap;
 UINT Num_CBV_SRV_UAV = 3;
 PassConstants MainPassConstants;
+PassConstants ReflectedPassConstants;
+RenderItem* gSkullRitem = nullptr;
+RenderItem* gReflectedSkullRitem = nullptr;
+RenderItem* gShadowedSkullRitem = nullptr;
 enum class ERenderLayer : int
 {
 	Opaque = 0,
 	AlphaTested,
 	AlphaBlended,
+	Reflected,
+	Shadow,
+	Mirrors,
+	Transparent,
 	Count
 };
 
@@ -114,6 +127,8 @@ LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 //bool				BuildBoxGeometry();
 void				Update(float dt);
+void UpdateMainPassCB(float dt, float totalTime, FFrameResource& curFR);
+void UpdateReflectedPassCB(float dt);
 
 void OnMouseMove(WPARAM btnState, int x, int y);
 void OnMouseDown(WPARAM btnState, int x, int y);
@@ -301,7 +316,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    BuildRenderItems_MirroredSkull();
 
-   BuildConstantBuffers((int)AllRitems.size(), (int)Materials.size());
+   BuildConstantBuffers((int)AllRitems.size(), (int)Materials.size() , 2);
    
    SimpleBoxRootSig = gRenderer->CreateRootSignature("DTable,1,0,CBV");
    CBVRootSig = gRenderer->CreateRootSignature("RootCBV,0;RootCBV,1;");
@@ -537,6 +552,59 @@ void UpdateMaterialCBs(float dt, FFrameResource& curFR)
 	}
 }
 
+void UpdateMainPassCB(float dt, float totalTime, FFrameResource& curFR)
+{
+	glm::mat4 viewProj = ProjMat * ViewMat;
+	glm::mat4 invView = glm::inverse(ViewMat);
+	glm::mat4 invProj = glm::inverse(ProjMat);
+	glm::mat4 invViewProj = glm::inverse(viewProj);
+
+	MainPassConstants.View = glm::transpose(ViewMat);
+	MainPassConstants.InvView = glm::transpose(invView);
+	MainPassConstants.Proj = glm::transpose(ProjMat);
+	MainPassConstants.InvProj = glm::transpose(invProj);
+	MainPassConstants.ViewProj = glm::transpose(viewProj);
+	MainPassConstants.InvViewProj = glm::transpose(invViewProj);
+	MainPassConstants.EyePosW = gEyePos;
+	MainPassConstants.RenderTargetSize = glm::vec2((float)Width, (float)Height);
+	MainPassConstants.InvRenderTargetSize = glm::vec2(1.0f / Width, 1.0f / Height);
+	MainPassConstants.NearZ = 1.0f;
+	MainPassConstants.FarZ = 1000.0f;
+	MainPassConstants.TotalTime = totalTime;
+	MainPassConstants.DeltaTime = dt;
+	MainPassConstants.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
+	MainPassConstants.Lights[0].Direction = { 0.57735f, -0.57735f, 0.57735f };
+	MainPassConstants.Lights[0].Strength = { 0.6f, 0.6f, 0.6f };
+	MainPassConstants.Lights[1].Direction = { -0.57735f, -0.57735f, 0.57735f };
+	MainPassConstants.Lights[1].Strength = { 0.3f, 0.3f, 0.3f };
+	MainPassConstants.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
+	MainPassConstants.Lights[2].Strength = { 0.15f, 0.15f, 0.15f };
+
+	// Main pass stored in index 2
+	auto currPassCB = curFR.CBPerFrame.get();
+	currPassCB->CopyData(0, &MainPassConstants);
+}
+
+void UpdateReflectedPassCB(float dt)
+{
+	ReflectedPassConstants = MainPassConstants;
+
+	glm::vec4 mirrorPlane(0.0f, 0.0f, 1.0f, 0.0f); // xy plane
+	glm::mat4 R = glm::reflect(mirrorPlane);
+
+	// Reflect the lighting.
+	for (int i = 0; i < 3; ++i)
+	{
+		XMVECTOR lightDir = XMLoadFloat3(&mMainPassCB.Lights[i].Direction);
+		XMVECTOR reflectedLightDir = XMVector3TransformNormal(lightDir, R);
+		XMStoreFloat3(&mReflectedPassCB.Lights[i].Direction, reflectedLightDir);
+	}
+
+	// Reflected pass stored in index 1
+	auto currPassCB = mCurrFrameResource->PassCB.get();
+	currPassCB->CopyData(1, mReflectedPassCB);
+}
+
 void Print(const glm::vec3& v)
 {
 	std::wcout << v.x << L"," << v.y << L"," << v.z << std::endl;
@@ -567,7 +635,6 @@ void UpdateWaves(float dt, FFrameResource& curFR)
 	for (int i = 0; i < gWaves->VertexCount(); ++i)
 	{
 		Vertex v;
-
 		v.Pos = gWaves->Position(i);
 		v.Normal = gWaves->Normal(i);
 		v.TexC.x = 0.5f + v.Pos.x / gWaves->Width();
@@ -612,6 +679,9 @@ void AnimateMaterials(float dt)
 
 void Update(float dt)
 {
+	static float TotalTime = 0;
+	TotalTime += dt;
+
 	OnKeyboardInput();
 
 	auto& curFR = GetFrameResource_WaitAvailable(CurrentFrameResourceIndex);
@@ -622,9 +692,9 @@ void Update(float dt)
 	float y = Radius * cosf(Phi);
 
 	// Build the view matrix.
-	glm::vec3 eyePos(x, y, z);
+	gEyePos = glm::vec3(x, y, z);
 	glm::vec3 target(0, 0, 0);
-	ViewMat = glm::lookAt(eyePos, target, glm::vec3(0, 1, 0));
+	ViewMat = glm::lookAt(gEyePos, target, glm::vec3(0, 1, 0));
 	if (gAxisRenderer)
 	{
 		float x = 5.0f * sinf(Phi) * cosf(Theta);
@@ -633,18 +703,20 @@ void Update(float dt)
 		gAxisRenderer->SetCameraPos(glm::vec3(x, y, z));
 	}
 	
-	MainPassConstants.ViewProj = glm::transpose(ProjMat * ViewMat);
+	/*MainPassConstants.ViewProj = glm::transpose(ProjMat * ViewMat);
 	MainPassConstants.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
 	glm::vec3 lightDir = -SphericalToCartesian(1.0f, 1.25f * glm::pi<float>(), glm::four_over_pi<float>());
 	MainPassConstants.Lights[0].Direction = lightDir;
 	MainPassConstants.Lights[0].Strength = { 1.0f, 1.0f, 0.9f };
-	MainPassConstants.EyePosW = eyePos;
-	curFR.CBPerFrame->CopyData(0, &MainPassConstants);
+	MainPassConstants.EyePosW = gEyePos;
+	curFR.CBPerFrame->CopyData(0, &MainPassConstants);*/
 
 	AnimateMaterials(dt);
 	UpdateObjectCBs(dt, curFR);
 	UpdateMaterialCBs(dt, curFR);
-	UpdateWaves(dt, curFR);
+	UpdateMainPassCB(dt, TotalTime, curFR);
+	UpdateReflectedPassCB(dt);
+	//UpdateWaves(dt, curFR);
 }
 
 void OnMouseMove(WPARAM btnState, int x, int y)
@@ -1203,7 +1275,7 @@ void BuildRoomGeometry()
 	auto geo = std::make_unique<MeshGeometry>();
 	geo->Name = "roomGeo";
 
-	geo->VertexBuffer = gRenderer->CreateVertexBuffer(vertices.data, vbByteSize, sizeof(Vertex), false);
+	geo->VertexBuffer = gRenderer->CreateVertexBuffer(vertices.data(), vbByteSize, sizeof(Vertex), false);
 	geo->IndexBuffer = gRenderer->CreateIndexBuffer(indices.data(), ibByteSize, fb::EIndexBufferFormat::R16, false);
 
 	geo->DrawArgs["floor"] = floorSubmesh;
@@ -1256,72 +1328,67 @@ void BuildRenderItems_MirroredSkull()
 	auto& geom = Geometries["roomGeo"];
 	floorRitem->VB = geom->VertexBuffer;
 	floorRitem->IB = geom->IndexBuffer;
-	floorRitem->PrimitiveTopology = fb::EPrimitiveTopology::TRIANGLELIST;
 	auto& floorSubMesh = geom->DrawArgs["floor"];
 	floorRitem->IndexCount = floorSubMesh.IndexCount;
 	floorRitem->StartIndexLocation = floorSubMesh.StartIndexLocation;
 	floorRitem->BaseVertexLocation = floorSubMesh.BaseVertexLocation;
 	RenderItemLayers[(int)ERenderLayer::Opaque].push_back(floorRitem.get());
+	AllRitems.push_back(std::move(floorRitem));
 
 	auto wallsRitem = std::make_unique<RenderItem>();
-	wallsRitem->World = MathHelper::Identity4x4();
-	wallsRitem->TexTransform = MathHelper::Identity4x4();
-	wallsRitem->ObjCBIndex = 1;
-	wallsRitem->Mat = mMaterials["bricks"].get();
-	wallsRitem->Geo = mGeometries["roomGeo"].get();
-	wallsRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	wallsRitem->IndexCount = wallsRitem->Geo->DrawArgs["wall"].IndexCount;
-	wallsRitem->StartIndexLocation = wallsRitem->Geo->DrawArgs["wall"].StartIndexLocation;
-	wallsRitem->BaseVertexLocation = wallsRitem->Geo->DrawArgs["wall"].BaseVertexLocation;
-	mRitemLayer[(int)RenderLayer::Opaque].push_back(wallsRitem.get());
+	wallsRitem->ObjectCBIndex = 1;
+	wallsRitem->Mat = Materials["bricks"].get();
+	auto& roomGeom = Geometries["roomGeo"];
+	wallsRitem->VB = roomGeom->VertexBuffer;
+	wallsRitem->IB = roomGeom->IndexBuffer;
+	auto& wallSubMesh = roomGeom->DrawArgs["wall"];
+	wallsRitem->IndexCount = wallSubMesh.IndexCount;
+	wallsRitem->StartIndexLocation = wallSubMesh.StartIndexLocation;
+	wallsRitem->BaseVertexLocation = wallSubMesh.BaseVertexLocation;
+	RenderItemLayers[(int)ERenderLayer::Opaque].push_back(wallsRitem.get());
+	AllRitems.push_back(std::move(wallsRitem));
 
 	auto skullRitem = std::make_unique<RenderItem>();
-	skullRitem->World = MathHelper::Identity4x4();
-	skullRitem->TexTransform = MathHelper::Identity4x4();
-	skullRitem->ObjCBIndex = 2;
-	skullRitem->Mat = mMaterials["skullMat"].get();
-	skullRitem->Geo = mGeometries["skullGeo"].get();
-	skullRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	skullRitem->IndexCount = skullRitem->Geo->DrawArgs["skull"].IndexCount;
-	skullRitem->StartIndexLocation = skullRitem->Geo->DrawArgs["skull"].StartIndexLocation;
-	skullRitem->BaseVertexLocation = skullRitem->Geo->DrawArgs["skull"].BaseVertexLocation;
-	mSkullRitem = skullRitem.get();
-	mRitemLayer[(int)RenderLayer::Opaque].push_back(skullRitem.get());
+	skullRitem->ObjectCBIndex = 2;
+	skullRitem->Mat = Materials["skullMat"].get();
+	auto& skullGeom = Geometries["skullGeo"];
+	skullRitem->VB = skullGeom->VertexBuffer;
+	skullRitem->IB = skullGeom->IndexBuffer;
+	auto& skullSubMesh = skullGeom->DrawArgs["skull"];
+	skullRitem->IndexCount = skullSubMesh.IndexCount;
+	skullRitem->StartIndexLocation = skullSubMesh.StartIndexLocation;
+	skullRitem->BaseVertexLocation = skullSubMesh.BaseVertexLocation;
+	gSkullRitem = skullRitem.get();
+	RenderItemLayers[(int)ERenderLayer::Opaque].push_back(skullRitem.get());
+	AllRitems.push_back(std::move(skullRitem));
 
 	// Reflected skull will have different world matrix, so it needs to be its own render item.
 	auto reflectedSkullRitem = std::make_unique<RenderItem>();
 	*reflectedSkullRitem = *skullRitem;
-	reflectedSkullRitem->ObjCBIndex = 3;
-	mReflectedSkullRitem = reflectedSkullRitem.get();
-	mRitemLayer[(int)RenderLayer::Reflected].push_back(reflectedSkullRitem.get());
+	reflectedSkullRitem->ObjectCBIndex = 3;
+	gReflectedSkullRitem = reflectedSkullRitem.get();
+	RenderItemLayers[(int)ERenderLayer::Reflected].push_back(reflectedSkullRitem.get());
+	AllRitems.push_back(std::move(reflectedSkullRitem));
 
 	// Shadowed skull will have different world matrix, so it needs to be its own render item.
 	auto shadowedSkullRitem = std::make_unique<RenderItem>();
 	*shadowedSkullRitem = *skullRitem;
-	shadowedSkullRitem->ObjCBIndex = 4;
-	shadowedSkullRitem->Mat = mMaterials["shadowMat"].get();
-	mShadowedSkullRitem = shadowedSkullRitem.get();
-	mRitemLayer[(int)RenderLayer::Shadow].push_back(shadowedSkullRitem.get());
+	shadowedSkullRitem->ObjectCBIndex = 4;
+	shadowedSkullRitem->Mat = Materials["shadowMat"].get();
+	gShadowedSkullRitem = shadowedSkullRitem.get();
+	RenderItemLayers[(int)ERenderLayer::Shadow].push_back(shadowedSkullRitem.get());
+	AllRitems.push_back(std::move(shadowedSkullRitem));
 
 	auto mirrorRitem = std::make_unique<RenderItem>();
-	mirrorRitem->World = MathHelper::Identity4x4();
-	mirrorRitem->TexTransform = MathHelper::Identity4x4();
-	mirrorRitem->ObjCBIndex = 5;
-	mirrorRitem->Mat = mMaterials["icemirror"].get();
-	mirrorRitem->Geo = mGeometries["roomGeo"].get();
-	mirrorRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	mirrorRitem->IndexCount = mirrorRitem->Geo->DrawArgs["mirror"].IndexCount;
-	mirrorRitem->StartIndexLocation = mirrorRitem->Geo->DrawArgs["mirror"].StartIndexLocation;
-	mirrorRitem->BaseVertexLocation = mirrorRitem->Geo->DrawArgs["mirror"].BaseVertexLocation;
-	mRitemLayer[(int)RenderLayer::Mirrors].push_back(mirrorRitem.get());
-	mRitemLayer[(int)RenderLayer::Transparent].push_back(mirrorRitem.get());
-
-	mAllRitems.push_back(std::move(floorRitem));
-	mAllRitems.push_back(std::move(wallsRitem));
-	mAllRitems.push_back(std::move(skullRitem));
-	mAllRitems.push_back(std::move(reflectedSkullRitem));
-	mAllRitems.push_back(std::move(shadowedSkullRitem));
-	mAllRitems.push_back(std::move(mirrorRitem));
+	mirrorRitem->ObjectCBIndex = 5;
+	mirrorRitem->Mat = Materials["icemirror"].get();
+	auto& mirrorSubMesh = roomGeom->DrawArgs["mirror"];
+	mirrorRitem->IndexCount = mirrorSubMesh.IndexCount;
+	mirrorRitem->StartIndexLocation = mirrorSubMesh.StartIndexLocation;
+	mirrorRitem->BaseVertexLocation = mirrorSubMesh.BaseVertexLocation;
+	RenderItemLayers[(int)ERenderLayer::Mirrors].push_back(mirrorRitem.get());
+	RenderItemLayers[(int)ERenderLayer::Transparent].push_back(mirrorRitem.get());
+	AllRitems.push_back(std::move(mirrorRitem));
 }
 
 void BuildRenderItems_Wave()

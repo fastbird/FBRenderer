@@ -6,6 +6,17 @@ namespace fb {
 		return (DXGI_FORMAT)format;
 	}
 
+	inline DXGI_FORMAT Convert(EIndexBufferFormat format) {
+		switch (format) {
+		case EIndexBufferFormat::R16:
+			return DXGI_FORMAT_R16_UINT;
+		case EIndexBufferFormat::R32:
+			return DXGI_FORMAT_R32_UINT;
+		}
+		assert(0 && "Improper argument found!");
+		return DXGI_FORMAT_R32_UINT;
+	}
+
 	inline EDataFormat Convert(DXGI_FORMAT format) {
 		return (EDataFormat)format;
 	}

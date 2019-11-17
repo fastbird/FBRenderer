@@ -401,7 +401,7 @@ IShader* RendererD3D12::CompileShader(
 	if (macros) {
 		auto numMacros = CountShaderMacro(macros);
 		d3dMacros = new D3D_SHADER_MACRO[numMacros + 1];
-		for (int i = 0; i < numMacros; ++i) {
+		for (UINT32 i = 0; i < numMacros; ++i) {
 			d3dMacros[i].Name = macros[i].Name;
 			d3dMacros[i].Definition = macros[i].Definition;
 		}
@@ -552,7 +552,7 @@ IRootSignature* RendererD3D12::CreateRootSignature(const char* definition)
 	/*CD3DX12_STATIC_SAMPLER_DESC StaticSamplers[1];
 	StaticSamplers[0].Init(3, D3D12_FILTER_ANISOTROPIC);*/
 	auto staticSamplers = GetStaticSamplers();
-	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc((UINT)parameters.size(), slotRootParameter, staticSamplers.size(), staticSamplers.data(),
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc((UINT)parameters.size(), slotRootParameter, (UINT)staticSamplers.size(), staticSamplers.data(),
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
 	ComPtr<ID3DBlob> serializedRootSig = nullptr;
