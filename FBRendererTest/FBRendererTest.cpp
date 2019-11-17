@@ -15,6 +15,7 @@
 #include "FrameResource.h"
 #include "Waves.h"
 #include "Material.h"
+#include "../../FBMathExt/MathExt.h"
 
 #define MAX_LOADSTRING 100
 
@@ -81,7 +82,6 @@ std::unordered_map<std::string, std::unique_ptr<Material>> Materials;
 std::unordered_map<std::string, fb::ITextureIPtr> Textures;
 std::vector<std::unique_ptr<RenderItem>> AllRitems;
 fb::IDescriptorHeapIPtr DescriptorHeap;
-UINT Num_CBV_SRV_UAV = 3;
 PassConstants MainPassConstants;
 PassConstants ReflectedPassConstants;
 RenderItem* gSkullRitem = nullptr;
@@ -91,7 +91,6 @@ enum class ERenderLayer : int
 {
 	Opaque = 0,
 	AlphaTested,
-	AlphaBlended,
 	Reflected,
 	Shadow,
 	Mirrors,
@@ -106,7 +105,7 @@ UINT PassCbvOffset = 0;
 std::unordered_map<std::string, fb::IShaderIPtr> Shaders;
 fb::IRootSignatureIPtr SimpleBoxRootSig;
 fb::IRootSignatureIPtr CBVRootSig;
-fb::IRootSignatureIPtr LightingRootSig;
+fb::IRootSignatureIPtr gRootSignature;
 bool IsWireframe = false;
 // Global Variables:
 HINSTANCE hInst;       // current instance
@@ -226,7 +225,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	delete gWaves; gWaves = nullptr;
 	delete PerPassCBs; PerPassCBs = nullptr;
 	DestroyFrameResources();
-	LightingRootSig.reset();
+	gRootSignature.reset();
 	CBVRootSig.reset();
 	SimpleBoxRootSig.reset();
 	delete gAxisRenderer; gAxisRenderer = nullptr;
@@ -321,7 +320,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    SimpleBoxRootSig = gRenderer->CreateRootSignature("DTable,1,0,CBV");
    CBVRootSig = gRenderer->CreateRootSignature("RootCBV,0;RootCBV,1;");
    // per object, material, per frame, texture
-   LightingRootSig = gRenderer->CreateRootSignature("RootCBV,0;RootCBV,1;RootCBV,2;DTable,3,0,SRV");
+   gRootSignature = gRenderer->CreateRootSignature("RootCBV,0;RootCBV,1;RootCBV,2;DTable,3,0,SRV");
 
    std::wcout << L"Root sig." << std::endl;
 
@@ -585,24 +584,21 @@ void UpdateMainPassCB(float dt, float totalTime, FFrameResource& curFR)
 	currPassCB->CopyData(0, &MainPassConstants);
 }
 
-void UpdateReflectedPassCB(float dt)
+void UpdateReflectedPassCB(float dt, FFrameResource& curFR)
 {
 	ReflectedPassConstants = MainPassConstants;
 
 	glm::vec4 mirrorPlane(0.0f, 0.0f, 1.0f, 0.0f); // xy plane
-	glm::mat4 R = glm::reflect(mirrorPlane);
+	glm::mat4 R = fb::MatrixReflect(mirrorPlane);
 
 	// Reflect the lighting.
 	for (int i = 0; i < 3; ++i)
 	{
-		XMVECTOR lightDir = XMLoadFloat3(&mMainPassCB.Lights[i].Direction);
-		XMVECTOR reflectedLightDir = XMVector3TransformNormal(lightDir, R);
-		XMStoreFloat3(&mReflectedPassCB.Lights[i].Direction, reflectedLightDir);
+		ReflectedPassConstants.Lights[i].Direction = R * glm::vec4(MainPassConstants.Lights[i].Direction, 0);
 	}
 
 	// Reflected pass stored in index 1
-	auto currPassCB = mCurrFrameResource->PassCB.get();
-	currPassCB->CopyData(1, mReflectedPassCB);
+	curFR.CBPerFrame->CopyData(1, &ReflectedPassConstants);
 }
 
 void Print(const glm::vec3& v)
@@ -910,9 +906,12 @@ void BuildWavesGeometryBuffers()
 
 void BuildPSO()
 {
+	//
+	// Opaque
+	//
 	fb::FPSODesc psoDesc;
 	psoDesc.InputLayout = { InputLayout.data(), (UINT)InputLayout.size() };
-	psoDesc.pRootSignature = LightingRootSig;
+	psoDesc.pRootSignature = gRootSignature;
 	psoDesc.VS =
 	{
 		reinterpret_cast<BYTE*>(Shaders["standardVS"]->GetByteCode()),
@@ -925,13 +924,16 @@ void BuildPSO()
 	};
 	psoDesc.PrimitiveTopologyType = fb::EPrimitiveTopologyType::TRIANGLE;
 	psoDesc.NumRenderTargets = 1;
-	psoDesc.RasterizerState.FrontCounterClockwise = true;
+	psoDesc.RasterizerState.FrontCounterClockwise = false;
 	psoDesc.RTVFormats[0] = gRenderer->GetBackBufferFormat();
 	psoDesc.SampleDesc.Count = gRenderer->GetSampleCount();
 	psoDesc.SampleDesc.Quality = gRenderer->GetMsaaQuality();
 	psoDesc.DSVFormat = gRenderer->GetDepthStencilFormat();
 	PSOs["Default"] = gRenderer->CreateGraphicsPipelineState(psoDesc);
 
+	//
+	// alphaTested
+	//
 	fb::FPSODesc alphaTestedPSODesc = psoDesc;
 	alphaTestedPSODesc.PS = 
 	{
@@ -948,24 +950,46 @@ void BuildPSO()
 	
 	blendDesc.SrcBlend = fb::EBlend::SRC_ALPHA;
 	blendDesc.DestBlend = fb::EBlend::INV_SRC_ALPHA;
-	blendDesc.BlendOp = fb::EBlendOp::SUBTRACT;
+	blendDesc.BlendOp = fb::EBlendOp::ADD;
 
 	blendDesc.SrcBlendAlpha = fb::EBlend::ONE;
 	blendDesc.DestBlendAlpha = fb::EBlend::ZERO;
 	blendDesc.BlendOpAlpha = fb::EBlendOp::ADD;
 	
 	blendDesc.LogicOp = fb::ELogicOp::NOOP;
-	blendDesc.RenderTargetWriteMask = 0;
+	blendDesc.RenderTargetWriteMask = fb::EColorWriteEnable::ALL;
 	alphaBlendedPSODesc.BlendState.RenderTarget[0] = blendDesc;
-	PSOs["AlphaBlended"] = gRenderer->CreateGraphicsPipelineState(alphaBlendedPSODesc);
+	PSOs["Transparent"] = gRenderer->CreateGraphicsPipelineState(alphaBlendedPSODesc);
 
+	//
+	// Stencil marking
+	//
+	fb::FPSODesc stencilPSODesc = psoDesc;
+	stencilPSODesc.BlendState.RenderTarget[0].RenderTargetWriteMask = fb::EColorWriteEnable::NONE;
+	stencilPSODesc.DepthStencilState.DepthEnable = true;
+	stencilPSODesc.DepthStencilState.DepthWriteMask = fb::EDepthWriteMask::ZERO;
+	stencilPSODesc.DepthStencilState.StencilEnable = true;
+	stencilPSODesc.DepthStencilState.FrontFace.StencilPassOp = fb::EStencilOp::REPLACE;
+	stencilPSODesc.DepthStencilState.FrontFace.StencilFunc = fb::EComparisonFunc::ALWAYS;
+
+	stencilPSODesc.DepthStencilState.BackFace.StencilPassOp = fb::EStencilOp::REPLACE;
+	stencilPSODesc.DepthStencilState.BackFace.StencilFunc = fb::EComparisonFunc::ALWAYS;
+	PSOs["markStencilMirrors"] = gRenderer->CreateGraphicsPipelineState(stencilPSODesc);
+
+	//
+	// PSO for stencil reflections.
+	//
+	fb::FPSODesc reflectionPSODesc = psoDesc;
+	reflectionPSODesc.DepthStencilState.DepthEnable = true;
+	reflectionPSODesc.DepthStencilState.StencilEnable = false;
+	reflectionPSODesc.DepthStencilState.FrontFace.StencilFunc = fb::EComparisonFunc::EQUAL;
+	reflectionPSODesc.DepthStencilState.BackFace.StencilFunc = fb::EComparisonFunc::EQUAL;
+	reflectionPSODesc.RasterizerState.FrontCounterClockwise = true;
+	PSOs["drawStencilReflections"] = gRenderer->CreateGraphicsPipelineState(reflectionPSODesc);
+
+	// Wireframe
 	psoDesc.RasterizerState.FillMode = fb::EFillMode::WIREFRAME;
 	PSOs["Wireframe"] = gRenderer->CreateGraphicsPipelineState(psoDesc);
-
-	psoDesc.DepthStencilState.StencilEnable = true;
-	psoDesc.DepthStencilState.FrontFace.StencilFunc = fb::EComparisonFunc::ALWAYS;
-	psoDesc.DepthStencilState.FrontFace.StencilPassOp = fb::EStencilOp::REPLACE;
-
 }
 
 void BuildShapeGeometry()
@@ -1325,10 +1349,10 @@ void BuildRenderItems_MirroredSkull()
 	floorRitem->ObjectCBIndex = 0;
 	assert(Materials["checkertile"].get());
 	floorRitem->Mat = Materials["checkertile"].get();
-	auto& geom = Geometries["roomGeo"];
-	floorRitem->VB = geom->VertexBuffer;
-	floorRitem->IB = geom->IndexBuffer;
-	auto& floorSubMesh = geom->DrawArgs["floor"];
+	auto& roomGeom = Geometries["roomGeo"];
+	floorRitem->VB = roomGeom->VertexBuffer;
+	floorRitem->IB = roomGeom->IndexBuffer;
+	auto& floorSubMesh = roomGeom->DrawArgs["floor"];
 	floorRitem->IndexCount = floorSubMesh.IndexCount;
 	floorRitem->StartIndexLocation = floorSubMesh.StartIndexLocation;
 	floorRitem->BaseVertexLocation = floorSubMesh.BaseVertexLocation;
@@ -1338,7 +1362,6 @@ void BuildRenderItems_MirroredSkull()
 	auto wallsRitem = std::make_unique<RenderItem>();
 	wallsRitem->ObjectCBIndex = 1;
 	wallsRitem->Mat = Materials["bricks"].get();
-	auto& roomGeom = Geometries["roomGeo"];
 	wallsRitem->VB = roomGeom->VertexBuffer;
 	wallsRitem->IB = roomGeom->IndexBuffer;
 	auto& wallSubMesh = roomGeom->DrawArgs["wall"];
@@ -1459,19 +1482,24 @@ void LoadTextures()
 	Textures["waterTex"] = gRenderer->LoadTexture(L"Textures/water1.dds");
 	Textures["woodCrateTex"] = gRenderer->LoadTexture(L"Textures/WoodCrate01.dds");
 	Textures["wireFenceTex"] = gRenderer->LoadTexture(L"Textures/WireFence.dds");
+	Textures["bricksTex"] = gRenderer->LoadTexture(L"Textures/bricks3.dds");
+	Textures["checkboardTex"] = gRenderer->LoadTexture(L"Textures/checkboard.dds");
+	Textures["iceTex"] = gRenderer->LoadTexture(L"Textures/ice.dds");
+	Textures["white1x1Tex"] = gRenderer->LoadTexture(L"Textures/white1x1.dds");
 }
-
+const UINT Num_CBV_SRV_UAV = 4;
 void BuildShaderResourceView()
 {
 	if (!DescriptorHeap)
 		DescriptorHeap = gRenderer->CreateDescriptorHeap(fb::EDescriptorHeapType::CBV_SRV_UAV, Num_CBV_SRV_UAV);
 
-	assert(Textures["woodCrateTex"]);
-	auto result = DescriptorHeap->CreateDescriptor(0, Textures["grassTex"]);
+	auto result = DescriptorHeap->CreateDescriptor(0, Textures["bricksTex"]);
 	assert(result);
-	result = DescriptorHeap->CreateDescriptor(1, Textures["waterTex"]);
+	result = DescriptorHeap->CreateDescriptor(1, Textures["checkboardTex"]);
 	assert(result);
-	result = DescriptorHeap->CreateDescriptor(2, Textures["wireFenceTex"]);
+	result = DescriptorHeap->CreateDescriptor(2, Textures["iceTex"]);
+	assert(result);
+	result = DescriptorHeap->CreateDescriptor(3, Textures["white1x1Tex"]);
 	assert(result);
 }
 
@@ -1526,7 +1554,7 @@ void Draw(float dt)
 
 	if (DescriptorHeap)
 		DescriptorHeap->Bind();
-	LightingRootSig->Bind();
+	gRootSignature->Bind();
 
 	gRenderer->SetGraphicsRootConstantBufferView(2, curFR.CBPerFrame, 0);
 

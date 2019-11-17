@@ -198,6 +198,9 @@ xcopy Textures ..\App\Textures /Y /I /S /D</Command>
     <Image Include="small.ico" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\FBMathExt\FBMathExt.vcxproj">
+      <Project>{ccd1aae7-399e-4324-ad73-bc8ee45689fe}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\FBRenderer.vcxproj">
       <Project>{e58aea2d-b89e-4f14-8d44-5465518a7c1b}</Project>
     </ProjectReference>
