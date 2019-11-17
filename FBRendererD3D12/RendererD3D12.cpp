@@ -315,7 +315,7 @@ IVertexBuffer* RendererD3D12::CreateVertexBuffer(const void* vertexData, UINT si
 	return vb;
 }
 
-IIndexBuffer* RendererD3D12::CreateIndexBuffer(const void* indexData, UINT size, EDataFormat format, bool keepData)
+IIndexBuffer* RendererD3D12::CreateIndexBuffer(const void* indexData, UINT size, EIndexBufferFormat format, bool keepData)
 {
 	auto ib = new IndexBuffer();
 	if (!ib->Initialize(indexData, size, format, keepData))

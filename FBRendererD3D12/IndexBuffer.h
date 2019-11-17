@@ -5,13 +5,13 @@ namespace fb
 {
 	class IndexBuffer : public GPUBuffer, public IIndexBuffer
 	{
-		DXGI_FORMAT Format;
+		EIndexBufferFormat Format;
 		UINT ElementCount;
 
 	public:
-		virtual bool Initialize(const void* indexData, UINT size, EDataFormat format, bool keepData) override;
+		virtual bool Initialize(const void* indexData, UINT size, EIndexBufferFormat format, bool keepData) override;
 		virtual UINT GetSize() const override { return Size; }
-		virtual EDataFormat GetFormat() const override;
+		virtual EIndexBufferFormat GetFormat() const override;
 		virtual UINT GetElementCount() const override { return ElementCount; }
 		D3D12_INDEX_BUFFER_VIEW IndexBufferView() const
 		{

@@ -39,7 +39,7 @@ namespace fb
 
 		virtual ICommandAllocator* CreateCommandAllocator() = 0;
 		virtual IVertexBuffer* CreateVertexBuffer(const void* vertexData, UINT size, UINT stride, bool keepData) = 0;
-		virtual IIndexBuffer* CreateIndexBuffer(const void* indexData, UINT size, EDataFormat format, bool keepData) = 0;
+		virtual IIndexBuffer* CreateIndexBuffer(const void* indexData, UINT size, EIndexBufferFormat format, bool keepData) = 0;
 		virtual IUploadBuffer* CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer) = 0;
 		virtual PSOID CreateGraphicsPipelineState(const FPSODesc& psoDesc) = 0;
 		virtual void DestroyGraphicsPipelineState(PSOID psoid) = 0;

@@ -5,17 +5,17 @@
 
 using namespace fb;
 
-bool IndexBuffer::Initialize(const void* indexData, UINT size, EDataFormat format, bool keepData)
+bool IndexBuffer::Initialize(const void* indexData, UINT size, EIndexBufferFormat format, bool keepData)
 {
-	Format = Convert(format);
+	Format = format;
 	switch (format) {
-	case EDataFormat::R16_UINT:
+	case EIndexBufferFormat::R16:
 	{
 		ElementCount = size / 2;
 		assert((float)ElementCount == size / 2.0f);
 		break;
 	}
-	case EDataFormat::R32_UINT:
+	case EIndexBufferFormat::R32:
 	{
 		ElementCount = size / 4;
 		assert((float)ElementCount == size / 4.0f);
@@ -30,9 +30,9 @@ bool IndexBuffer::Initialize(const void* indexData, UINT size, EDataFormat forma
 	return GPUBuffer::Initialize(indexData, size, keepData);
 }
 
-EDataFormat IndexBuffer::GetFormat() const
+EIndexBufferFormat IndexBuffer::GetFormat() const
 {
-	return Convert(Format);
+	return Format;
 }
 
 void IndexBuffer::Bind()

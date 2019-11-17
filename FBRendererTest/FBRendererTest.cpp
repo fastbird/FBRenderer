@@ -23,6 +23,13 @@ struct Vertex
 	glm::vec3 Pos;
 	glm::vec3 Normal;
 	glm::vec2 TexC;
+
+	Vertex(float x, float y, float z, float nx, float ny, float nz, float u, float v)
+		: Pos(x, y, z)
+		, Normal(nx, ny, nz)
+		, TexC(u, v)
+	{
+	}
 };
 
 struct SubmeshGeometry
@@ -123,7 +130,8 @@ void BuildWavesGeometryBuffers();
 void BuildPSO();
 
 void BuildShapeGeometry();
-void BuildRenderItems();
+void BuildRenderItems_Wave();
+void BuildRenderItems_MirroredSkull();
 void BuildWaves();
 void LoadTextures();
 void BuildShaderResourceView();
@@ -291,7 +299,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    BuildWavesGeometryBuffers();
 
-   BuildRenderItems();
+   BuildRenderItems_MirroredSkull();
 
    BuildConstantBuffers((int)AllRitems.size(), (int)Materials.size());
    
@@ -770,7 +778,7 @@ void BuildLandGeometry()
 	geo->Name = "landGeo";
 
 	geo->VertexBuffer = gRenderer->CreateVertexBuffer(vertices.data(), vbByteSize, sizeof(Vertex), false);
-	geo->IndexBuffer = gRenderer->CreateIndexBuffer(indices.data(), ibByteSize, fb::EDataFormat::R16_UINT, false);
+	geo->IndexBuffer = gRenderer->CreateIndexBuffer(indices.data(), ibByteSize, fb::EIndexBufferFormat::R16, false);
 
 	SubmeshGeometry submesh;
 	submesh.IndexCount = (UINT)indices.size();
@@ -819,7 +827,7 @@ void BuildWavesGeometryBuffers()
 	geo->Name = "waterGeo";
 	// Set dynamically.
 	geo->VertexBuffer = gRenderer->CreateVertexBuffer(nullptr, 0, 0, false);
-	geo->IndexBuffer = gRenderer->CreateIndexBuffer(indices.data(), ibByteSize, fb::EDataFormat::R16_UINT, false);
+	geo->IndexBuffer = gRenderer->CreateIndexBuffer(indices.data(), ibByteSize, fb::EIndexBufferFormat::R16, false);
 	SubmeshGeometry submesh;
 	submesh.IndexCount = (UINT)indices.size();
 	submesh.StartIndexLocation = 0;
@@ -845,7 +853,7 @@ void BuildPSO()
 	};
 	psoDesc.PrimitiveTopologyType = fb::EPrimitiveTopologyType::TRIANGLE;
 	psoDesc.NumRenderTargets = 1;
-	psoDesc.RasterizerState.CullMode = fb::ECullMode::FRONT;
+	psoDesc.RasterizerState.FrontCounterClockwise = true;
 	psoDesc.RTVFormats[0] = gRenderer->GetBackBufferFormat();
 	psoDesc.SampleDesc.Count = gRenderer->GetSampleCount();
 	psoDesc.SampleDesc.Quality = gRenderer->GetMsaaQuality();
@@ -865,19 +873,27 @@ void BuildPSO()
 	fb::FRenderTargetBlendDesc blendDesc;
 	blendDesc.BlendEnable = true;
 	blendDesc.LogicOpEnable = false;
+	
 	blendDesc.SrcBlend = fb::EBlend::SRC_ALPHA;
 	blendDesc.DestBlend = fb::EBlend::INV_SRC_ALPHA;
-	blendDesc.BlendOp = fb::EBlendOp::ADD;
+	blendDesc.BlendOp = fb::EBlendOp::SUBTRACT;
+
 	blendDesc.SrcBlendAlpha = fb::EBlend::ONE;
 	blendDesc.DestBlendAlpha = fb::EBlend::ZERO;
 	blendDesc.BlendOpAlpha = fb::EBlendOp::ADD;
+	
 	blendDesc.LogicOp = fb::ELogicOp::NOOP;
-	blendDesc.RenderTargetWriteMask = fb::EColorWriteEnable::ALL;
+	blendDesc.RenderTargetWriteMask = 0;
 	alphaBlendedPSODesc.BlendState.RenderTarget[0] = blendDesc;
 	PSOs["AlphaBlended"] = gRenderer->CreateGraphicsPipelineState(alphaBlendedPSODesc);
 
 	psoDesc.RasterizerState.FillMode = fb::EFillMode::WIREFRAME;
 	PSOs["Wireframe"] = gRenderer->CreateGraphicsPipelineState(psoDesc);
+
+	psoDesc.DepthStencilState.StencilEnable = true;
+	psoDesc.DepthStencilState.FrontFace.StencilFunc = fb::EComparisonFunc::ALWAYS;
+	psoDesc.DepthStencilState.FrontFace.StencilPassOp = fb::EStencilOp::REPLACE;
+
 }
 
 void BuildShapeGeometry()
@@ -981,7 +997,7 @@ void BuildShapeGeometry()
 	geo->VertexBuffer = gRenderer->CreateVertexBuffer(vertices.data(), vbByteSize, sizeof(Vertex), false);
 	assert(geo->VertexBuffer);
 
-	geo->IndexBuffer = gRenderer->CreateIndexBuffer(indices.data(), ibByteSize, fb::EDataFormat::R16_UINT, false);
+	geo->IndexBuffer = gRenderer->CreateIndexBuffer(indices.data(), ibByteSize, fb::EIndexBufferFormat::R16, false);
 
 	geo->DrawArgs["box"] = boxSubmesh;
 	geo->DrawArgs["grid"] = gridSubmesh;
@@ -1022,17 +1038,179 @@ void BuildShapeGeometry()
 		{
 			std::vector<std::uint16_t> indices = box.GetIndices16();
 			ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
-			geo->IndexBuffer = gRenderer->CreateIndexBuffer(indices.data(), ibByteSize, fb::EDataFormat::R16_UINT, false);
+			geo->IndexBuffer = gRenderer->CreateIndexBuffer(indices.data(), ibByteSize, fb::EIndexBufferFormat::R16, false);
 		}
 		else
 		{
 			ibByteSize = (UINT)box.Indices32.size() * sizeof(std::uint32_t);
-			geo->IndexBuffer = gRenderer->CreateIndexBuffer(box.Indices32.data(), ibByteSize, fb::EDataFormat::R32_UINT, false);
+			geo->IndexBuffer = gRenderer->CreateIndexBuffer(box.Indices32.data(), ibByteSize, fb::EIndexBufferFormat::R32, false);
 		}		
 
 		geo->DrawArgs["crate"] = boxSubmesh;
 		Geometries[geo->Name] = std::move(geo);
 	}
+}
+
+void BuildSkullGeometry()
+{
+	std::ifstream fin("Models/skull.txt");
+
+	if (!fin)
+	{
+		MessageBox(0, L"Models/skull.txt not found.", 0, 0);
+		return;
+	}
+
+	UINT vcount = 0;
+	UINT tcount = 0;
+	std::string ignore;
+
+	fin >> ignore >> vcount;
+	fin >> ignore >> tcount;
+	fin >> ignore >> ignore >> ignore >> ignore;
+
+	std::vector<Vertex> vertices(vcount);
+	for (UINT i = 0; i < vcount; ++i)
+	{
+		fin >> vertices[i].Pos.x >> vertices[i].Pos.y >> vertices[i].Pos.z;
+		fin >> vertices[i].Normal.x >> vertices[i].Normal.y >> vertices[i].Normal.z;
+
+		// Model does not have texture coordinates, so just zero them out.
+		vertices[i].TexC = { 0.0f, 0.0f };
+	}
+
+	fin >> ignore;
+	fin >> ignore;
+	fin >> ignore;
+
+	std::vector<std::int32_t> indices(3 * tcount);
+	for (UINT i = 0; i < tcount; ++i)
+	{
+		fin >> indices[i * 3 + 0] >> indices[i * 3 + 1] >> indices[i * 3 + 2];
+	}
+
+	fin.close();
+
+	//
+	// Pack the indices of all the meshes into one index buffer.
+	//
+
+	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+
+	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::int32_t);
+
+	auto geo = std::make_unique<MeshGeometry>();
+	geo->Name = "skullGeo";
+	geo->VertexBuffer = gRenderer->CreateVertexBuffer(vertices.data(), vbByteSize, sizeof(Vertex), false);
+	geo->IndexBuffer = gRenderer->CreateIndexBuffer(indices.data(), ibByteSize, fb::EIndexBufferFormat::R32, false);
+
+	SubmeshGeometry submesh;
+	submesh.IndexCount = (UINT)indices.size();
+	submesh.StartIndexLocation = 0;
+	submesh.BaseVertexLocation = 0;
+
+	geo->DrawArgs["skull"] = submesh;
+
+	Geometries[geo->Name] = std::move(geo);
+}
+
+void BuildRoomGeometry()
+{
+	// Create and specify geometry.  For this sample we draw a floor
+// and a wall with a mirror on it.  We put the floor, wall, and
+// mirror geometry in one vertex buffer.
+//
+//   |--------------|
+//   |              |
+//   |----|----|----|
+//   |Wall|Mirr|Wall|
+//   |    | or |    |
+//   /--------------/
+//  /   Floor      /
+// /--------------/
+
+	std::array<Vertex, 20> vertices =
+	{
+		// Floor: Observe we tile texture coordinates.
+		Vertex(-3.5f, 0.0f, -10.0f, 0.0f, 1.0f, 0.0f, 0.0f, 4.0f), // 0 
+		Vertex(-3.5f, 0.0f,   0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f),
+		Vertex(7.5f, 0.0f,   0.0f, 0.0f, 1.0f, 0.0f, 4.0f, 0.0f),
+		Vertex(7.5f, 0.0f, -10.0f, 0.0f, 1.0f, 0.0f, 4.0f, 4.0f),
+
+		// Wall: Observe we tile texture coordinates, and that we
+		// leave a gap in the middle for the mirror.
+		Vertex(-3.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 2.0f), // 4
+		Vertex(-3.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f),
+		Vertex(-2.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.5f, 0.0f),
+		Vertex(-2.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.5f, 2.0f),
+
+		Vertex(2.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 2.0f), // 8 
+		Vertex(2.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f),
+		Vertex(7.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 2.0f, 0.0f),
+		Vertex(7.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 2.0f, 2.0f),
+
+		Vertex(-3.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 1.0f), // 12
+		Vertex(-3.5f, 6.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f),
+		Vertex(7.5f, 6.0f, 0.0f, 0.0f, 0.0f, -1.0f, 6.0f, 0.0f),
+		Vertex(7.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 6.0f, 1.0f),
+
+		// Mirror
+		Vertex(-2.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 1.0f), // 16
+		Vertex(-2.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f),
+		Vertex(2.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f),
+		Vertex(2.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 1.0f, 1.0f)
+	};
+
+	std::array<std::int16_t, 30> indices =
+	{
+		// Floor
+		0, 1, 2,
+		0, 2, 3,
+
+		// Walls
+		4, 5, 6,
+		4, 6, 7,
+
+		8, 9, 10,
+		8, 10, 11,
+
+		12, 13, 14,
+		12, 14, 15,
+
+		// Mirror
+		16, 17, 18,
+		16, 18, 19
+	};
+
+	SubmeshGeometry floorSubmesh;
+	floorSubmesh.IndexCount = 6;
+	floorSubmesh.StartIndexLocation = 0;
+	floorSubmesh.BaseVertexLocation = 0;
+
+	SubmeshGeometry wallSubmesh;
+	wallSubmesh.IndexCount = 18;
+	wallSubmesh.StartIndexLocation = 6;
+	wallSubmesh.BaseVertexLocation = 0;
+
+	SubmeshGeometry mirrorSubmesh;
+	mirrorSubmesh.IndexCount = 6;
+	mirrorSubmesh.StartIndexLocation = 24;
+	mirrorSubmesh.BaseVertexLocation = 0;
+
+	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+	auto geo = std::make_unique<MeshGeometry>();
+	geo->Name = "roomGeo";
+
+	geo->VertexBuffer = gRenderer->CreateVertexBuffer(vertices.data, vbByteSize, sizeof(Vertex), false);
+	geo->IndexBuffer = gRenderer->CreateIndexBuffer(indices.data(), ibByteSize, fb::EIndexBufferFormat::R16, false);
+
+	geo->DrawArgs["floor"] = floorSubmesh;
+	geo->DrawArgs["wall"] = wallSubmesh;
+	geo->DrawArgs["mirror"] = mirrorSubmesh;
+
+	Geometries[geo->Name] = std::move(geo);
 }
 
 void BuildMaterials()
@@ -1069,7 +1247,84 @@ void BuildMaterials()
 
 }
 
-void BuildRenderItems()
+void BuildRenderItems_MirroredSkull()
+{
+	auto floorRitem = std::make_unique<RenderItem>();
+	floorRitem->ObjectCBIndex = 0;
+	assert(Materials["checkertile"].get());
+	floorRitem->Mat = Materials["checkertile"].get();
+	auto& geom = Geometries["roomGeo"];
+	floorRitem->VB = geom->VertexBuffer;
+	floorRitem->IB = geom->IndexBuffer;
+	floorRitem->PrimitiveTopology = fb::EPrimitiveTopology::TRIANGLELIST;
+	auto& floorSubMesh = geom->DrawArgs["floor"];
+	floorRitem->IndexCount = floorSubMesh.IndexCount;
+	floorRitem->StartIndexLocation = floorSubMesh.StartIndexLocation;
+	floorRitem->BaseVertexLocation = floorSubMesh.BaseVertexLocation;
+	RenderItemLayers[(int)ERenderLayer::Opaque].push_back(floorRitem.get());
+
+	auto wallsRitem = std::make_unique<RenderItem>();
+	wallsRitem->World = MathHelper::Identity4x4();
+	wallsRitem->TexTransform = MathHelper::Identity4x4();
+	wallsRitem->ObjCBIndex = 1;
+	wallsRitem->Mat = mMaterials["bricks"].get();
+	wallsRitem->Geo = mGeometries["roomGeo"].get();
+	wallsRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	wallsRitem->IndexCount = wallsRitem->Geo->DrawArgs["wall"].IndexCount;
+	wallsRitem->StartIndexLocation = wallsRitem->Geo->DrawArgs["wall"].StartIndexLocation;
+	wallsRitem->BaseVertexLocation = wallsRitem->Geo->DrawArgs["wall"].BaseVertexLocation;
+	mRitemLayer[(int)RenderLayer::Opaque].push_back(wallsRitem.get());
+
+	auto skullRitem = std::make_unique<RenderItem>();
+	skullRitem->World = MathHelper::Identity4x4();
+	skullRitem->TexTransform = MathHelper::Identity4x4();
+	skullRitem->ObjCBIndex = 2;
+	skullRitem->Mat = mMaterials["skullMat"].get();
+	skullRitem->Geo = mGeometries["skullGeo"].get();
+	skullRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	skullRitem->IndexCount = skullRitem->Geo->DrawArgs["skull"].IndexCount;
+	skullRitem->StartIndexLocation = skullRitem->Geo->DrawArgs["skull"].StartIndexLocation;
+	skullRitem->BaseVertexLocation = skullRitem->Geo->DrawArgs["skull"].BaseVertexLocation;
+	mSkullRitem = skullRitem.get();
+	mRitemLayer[(int)RenderLayer::Opaque].push_back(skullRitem.get());
+
+	// Reflected skull will have different world matrix, so it needs to be its own render item.
+	auto reflectedSkullRitem = std::make_unique<RenderItem>();
+	*reflectedSkullRitem = *skullRitem;
+	reflectedSkullRitem->ObjCBIndex = 3;
+	mReflectedSkullRitem = reflectedSkullRitem.get();
+	mRitemLayer[(int)RenderLayer::Reflected].push_back(reflectedSkullRitem.get());
+
+	// Shadowed skull will have different world matrix, so it needs to be its own render item.
+	auto shadowedSkullRitem = std::make_unique<RenderItem>();
+	*shadowedSkullRitem = *skullRitem;
+	shadowedSkullRitem->ObjCBIndex = 4;
+	shadowedSkullRitem->Mat = mMaterials["shadowMat"].get();
+	mShadowedSkullRitem = shadowedSkullRitem.get();
+	mRitemLayer[(int)RenderLayer::Shadow].push_back(shadowedSkullRitem.get());
+
+	auto mirrorRitem = std::make_unique<RenderItem>();
+	mirrorRitem->World = MathHelper::Identity4x4();
+	mirrorRitem->TexTransform = MathHelper::Identity4x4();
+	mirrorRitem->ObjCBIndex = 5;
+	mirrorRitem->Mat = mMaterials["icemirror"].get();
+	mirrorRitem->Geo = mGeometries["roomGeo"].get();
+	mirrorRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	mirrorRitem->IndexCount = mirrorRitem->Geo->DrawArgs["mirror"].IndexCount;
+	mirrorRitem->StartIndexLocation = mirrorRitem->Geo->DrawArgs["mirror"].StartIndexLocation;
+	mirrorRitem->BaseVertexLocation = mirrorRitem->Geo->DrawArgs["mirror"].BaseVertexLocation;
+	mRitemLayer[(int)RenderLayer::Mirrors].push_back(mirrorRitem.get());
+	mRitemLayer[(int)RenderLayer::Transparent].push_back(mirrorRitem.get());
+
+	mAllRitems.push_back(std::move(floorRitem));
+	mAllRitems.push_back(std::move(wallsRitem));
+	mAllRitems.push_back(std::move(skullRitem));
+	mAllRitems.push_back(std::move(reflectedSkullRitem));
+	mAllRitems.push_back(std::move(shadowedSkullRitem));
+	mAllRitems.push_back(std::move(mirrorRitem));
+}
+
+void BuildRenderItems_Wave()
 {
 	auto wavesRitem = std::make_unique<RenderItem>();
 	wavesRitem->ObjectCBIndex = 0;

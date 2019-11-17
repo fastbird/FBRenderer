@@ -56,7 +56,7 @@ namespace fb
 
 		virtual ICommandAllocator* CreateCommandAllocator() override;
 		virtual IVertexBuffer* CreateVertexBuffer(const void* vertexData, UINT size, UINT stride, bool keepData) override;
-		virtual IIndexBuffer* CreateIndexBuffer(const void* indexData, UINT size, EDataFormat format, bool keepData) override;
+		virtual IIndexBuffer* CreateIndexBuffer(const void* indexData, UINT size, EIndexBufferFormat format, bool keepData) override;
 		virtual IUploadBuffer* CreateUploadBuffer(UINT elementSize, UINT count, bool constantBuffer) override;
 		virtual PSOID CreateGraphicsPipelineState(const FPSODesc& psoDesc) override;
 		virtual void DestroyGraphicsPipelineState(PSOID psoid) override;
