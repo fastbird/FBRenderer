@@ -81,7 +81,7 @@ namespace fb
 		virtual void ClearRenderTargetDepthStencil(float clearColor[4]) = 0;
 		virtual void SetDefaultRenderTargets() = 0;		
 		virtual UINT64 SignalFence() = 0;
-		
+		virtual void SetStencilRef(UINT stencilRef) = 0;
 
 		virtual void TempResetCommandList() = 0;		
 		virtual void TempCreateRootSignatureForSimpleBox() = 0;

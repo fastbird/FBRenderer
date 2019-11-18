@@ -14,6 +14,7 @@ struct RenderItem
 		, TexTransform(1.0f)
 		, NumFramesDirty(NUM_SWAPCHAIN_BUFFERS)
 		, PrimitiveTopology(fb::EPrimitiveTopology::TRIANGLELIST)
+		, StencilRef(0)
 		, IndexCount(0)
 		, StartIndexLocation(0)
 		, BaseVertexLocation(0)
@@ -28,6 +29,7 @@ struct RenderItem
 	fb::IVertexBufferIPtr VB;
 	fb::IIndexBufferIPtr IB;
 	fb::EPrimitiveTopology PrimitiveTopology;
+	UINT StencilRef;
 
 	// Draw params
 	UINT IndexCount;

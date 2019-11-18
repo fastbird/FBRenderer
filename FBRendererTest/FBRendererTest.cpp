@@ -93,8 +93,7 @@ enum class ERenderLayer : int
 	AlphaTested,
 	Reflected,
 	Shadow,
-	Mirrors,
-	Transparent,
+	TransparentMirror,
 	Count
 };
 
@@ -127,7 +126,7 @@ INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 //bool				BuildBoxGeometry();
 void				Update(float dt);
 void UpdateMainPassCB(float dt, float totalTime, FFrameResource& curFR);
-void UpdateReflectedPassCB(float dt);
+void UpdateReflectedPassCB(float dt, FFrameResource& curFR);
 
 void OnMouseMove(WPARAM btnState, int x, int y);
 void OnMouseDown(WPARAM btnState, int x, int y);
@@ -151,7 +150,10 @@ void LoadTextures();
 void BuildShaderResourceView();
 void Draw(float dt);
 void OnKeyboardInput();
-void BuildMaterials();
+void BuildMaterials_MirroredSkull();
+void BuildMaterials_Wave();
+void BuildRoomGeometry();
+void BuildSkullGeometry();
 
 void DestroyRenderItems();
 
@@ -294,7 +296,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    gRenderer = fb::InitRenderer(fb::RendererType::D3D12, (void*)WindowHandle);
 
    BuildFrameResources();
-   BuildMaterials();
+   BuildMaterials_MirroredSkull();
 
    gRenderer->ResetCommandList(nullptr, 0);
    std::wcout << L"Reset Command List" << std::endl;
@@ -305,13 +307,14 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    BuildShaderResourceView();
 
-   BuildWaves();
-
    BuildShadersAndInputLayout();
 
-   BuildLandGeometry();
+   //BuildWaves();
+   //BuildLandGeometry();
+	//BuildWavesGeometryBuffers();
 
-   BuildWavesGeometryBuffers();
+   BuildRoomGeometry();
+   BuildSkullGeometry();
 
    BuildRenderItems_MirroredSkull();
 
@@ -653,6 +656,9 @@ glm::vec3 SphericalToCartesian(float radius, float theta, float phi)
 
 void AnimateMaterials(float dt)
 {
+	auto it = Materials.find("water");
+	if (it == Materials.end())
+		return;
 	auto waterMat = Materials["water"].get();
 	if (!waterMat)
 		return;
@@ -707,11 +713,11 @@ void Update(float dt)
 	MainPassConstants.EyePosW = gEyePos;
 	curFR.CBPerFrame->CopyData(0, &MainPassConstants);*/
 
-	AnimateMaterials(dt);
+	//AnimateMaterials(dt);
 	UpdateObjectCBs(dt, curFR);
 	UpdateMaterialCBs(dt, curFR);
 	UpdateMainPassCB(dt, TotalTime, curFR);
-	UpdateReflectedPassCB(dt);
+	UpdateReflectedPassCB(dt, curFR);
 	//UpdateWaves(dt, curFR);
 }
 
@@ -924,11 +930,17 @@ void BuildPSO()
 	};
 	psoDesc.PrimitiveTopologyType = fb::EPrimitiveTopologyType::TRIANGLE;
 	psoDesc.NumRenderTargets = 1;
-	psoDesc.RasterizerState.FrontCounterClockwise = false;
+	psoDesc.RasterizerState.FrontCounterClockwise = true;
 	psoDesc.RTVFormats[0] = gRenderer->GetBackBufferFormat();
 	psoDesc.SampleDesc.Count = gRenderer->GetSampleCount();
 	psoDesc.SampleDesc.Quality = gRenderer->GetMsaaQuality();
 	psoDesc.DSVFormat = gRenderer->GetDepthStencilFormat();
+	psoDesc.DepthStencilState.StencilEnable = true;
+	psoDesc.DepthStencilState.FrontFace.StencilPassOp = fb::EStencilOp::REPLACE;
+	psoDesc.DepthStencilState.FrontFace.StencilFunc = fb::EComparisonFunc::ALWAYS;
+	psoDesc.DepthStencilState.BackFace.StencilPassOp = fb::EStencilOp::REPLACE;
+	psoDesc.DepthStencilState.BackFace.StencilFunc = fb::EComparisonFunc::ALWAYS;
+
 	PSOs["Default"] = gRenderer->CreateGraphicsPipelineState(psoDesc);
 
 	//
@@ -959,32 +971,23 @@ void BuildPSO()
 	blendDesc.LogicOp = fb::ELogicOp::NOOP;
 	blendDesc.RenderTargetWriteMask = fb::EColorWriteEnable::ALL;
 	alphaBlendedPSODesc.BlendState.RenderTarget[0] = blendDesc;
-	PSOs["Transparent"] = gRenderer->CreateGraphicsPipelineState(alphaBlendedPSODesc);
+	alphaBlendedPSODesc.DepthStencilState.StencilEnable = true;
+	alphaBlendedPSODesc.DepthStencilState.FrontFace.StencilFunc = fb::EComparisonFunc::EQUAL;
+	alphaBlendedPSODesc.RasterizerState.FrontCounterClockwise = true;
+	PSOs["TransparentMirror"] = gRenderer->CreateGraphicsPipelineState(alphaBlendedPSODesc);
 
-	//
-	// Stencil marking
-	//
-	fb::FPSODesc stencilPSODesc = psoDesc;
-	stencilPSODesc.BlendState.RenderTarget[0].RenderTargetWriteMask = fb::EColorWriteEnable::NONE;
-	stencilPSODesc.DepthStencilState.DepthEnable = true;
-	stencilPSODesc.DepthStencilState.DepthWriteMask = fb::EDepthWriteMask::ZERO;
-	stencilPSODesc.DepthStencilState.StencilEnable = true;
-	stencilPSODesc.DepthStencilState.FrontFace.StencilPassOp = fb::EStencilOp::REPLACE;
-	stencilPSODesc.DepthStencilState.FrontFace.StencilFunc = fb::EComparisonFunc::ALWAYS;
-
-	stencilPSODesc.DepthStencilState.BackFace.StencilPassOp = fb::EStencilOp::REPLACE;
-	stencilPSODesc.DepthStencilState.BackFace.StencilFunc = fb::EComparisonFunc::ALWAYS;
-	PSOs["markStencilMirrors"] = gRenderer->CreateGraphicsPipelineState(stencilPSODesc);
 
 	//
 	// PSO for stencil reflections.
 	//
 	fb::FPSODesc reflectionPSODesc = psoDesc;
 	reflectionPSODesc.DepthStencilState.DepthEnable = true;
-	reflectionPSODesc.DepthStencilState.StencilEnable = false;
+	reflectionPSODesc.DepthStencilState.StencilEnable = true;
 	reflectionPSODesc.DepthStencilState.FrontFace.StencilFunc = fb::EComparisonFunc::EQUAL;
+	reflectionPSODesc.DepthStencilState.FrontFace.StencilPassOp = fb::EStencilOp::REPLACE;
 	reflectionPSODesc.DepthStencilState.BackFace.StencilFunc = fb::EComparisonFunc::EQUAL;
-	reflectionPSODesc.RasterizerState.FrontCounterClockwise = true;
+	reflectionPSODesc.DepthStencilState.BackFace.StencilPassOp = fb::EStencilOp::REPLACE;
+	reflectionPSODesc.RasterizerState.FrontCounterClockwise = false;
 	PSOs["drawStencilReflections"] = gRenderer->CreateGraphicsPipelineState(reflectionPSODesc);
 
 	// Wireframe
@@ -1309,7 +1312,56 @@ void BuildRoomGeometry()
 	Geometries[geo->Name] = std::move(geo);
 }
 
-void BuildMaterials()
+void BuildMaterials_MirroredSkull()
+{
+	auto bricks = std::make_unique<Material>();
+	bricks->Name = "bricks";
+	bricks->MatCBIndex = 0;
+	bricks->DiffuseSrvHeapIndex = 0;
+	bricks->DiffuseAlbedo = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+	bricks->FresnelR0 = glm::vec3(0.05f, 0.05f, 0.05f);
+	bricks->Roughness = 0.25f;
+
+	auto checkertile = std::make_unique<Material>();
+	checkertile->Name = "checkertile";
+	checkertile->MatCBIndex = 1;
+	checkertile->DiffuseSrvHeapIndex = 1;
+	checkertile->DiffuseAlbedo = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+	checkertile->FresnelR0 = glm::vec3(0.07f, 0.07f, 0.07f);
+	checkertile->Roughness = 0.3f;
+
+	auto icemirror = std::make_unique<Material>();
+	icemirror->Name = "icemirror";
+	icemirror->MatCBIndex = 2;
+	icemirror->DiffuseSrvHeapIndex = 2;
+	icemirror->DiffuseAlbedo = glm::vec4(1.0f, 1.0f, 1.0f, 0.3f);
+	icemirror->FresnelR0 = glm::vec3(0.1f, 0.1f, 0.1f);
+	icemirror->Roughness = 0.5f;
+
+	auto skullMat = std::make_unique<Material>();
+	skullMat->Name = "skullMat";
+	skullMat->MatCBIndex = 3;
+	skullMat->DiffuseSrvHeapIndex = 3;
+	skullMat->DiffuseAlbedo = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+	skullMat->FresnelR0 = glm::vec3(0.05f, 0.05f, 0.05f);
+	skullMat->Roughness = 0.3f;
+
+	auto shadowMat = std::make_unique<Material>();
+	shadowMat->Name = "shadowMat";
+	shadowMat->MatCBIndex = 4;
+	shadowMat->DiffuseSrvHeapIndex = 3;
+	shadowMat->DiffuseAlbedo = glm::vec4(0.0f, 0.0f, 0.0f, 0.5f);
+	shadowMat->FresnelR0 = glm::vec3(0.001f, 0.001f, 0.001f);
+	shadowMat->Roughness = 0.0f;
+
+	Materials["bricks"] = std::move(bricks);
+	Materials["checkertile"] = std::move(checkertile);
+	Materials["icemirror"] = std::move(icemirror);
+	Materials["skullMat"] = std::move(skullMat);
+	Materials["shadowMat"] = std::move(shadowMat);
+}
+
+void BuildMaterials_Wave()
 {
 	auto grass = std::make_unique<Material>();
 	grass->Name = "grass";
@@ -1374,7 +1426,8 @@ void BuildRenderItems_MirroredSkull()
 	auto skullRitem = std::make_unique<RenderItem>();
 	skullRitem->ObjectCBIndex = 2;
 	skullRitem->Mat = Materials["skullMat"].get();
-	auto& skullGeom = Geometries["skullGeo"];
+	skullRitem->World = glm::scale(glm::vec3(0.45f)) * glm::translate(glm::vec3(0.f, 1.f, -5.f));
+	auto& skullGeom = Geometries["skullGeo"];	
 	skullRitem->VB = skullGeom->VertexBuffer;
 	skullRitem->IB = skullGeom->IndexBuffer;
 	auto& skullSubMesh = skullGeom->DrawArgs["skull"];
@@ -1383,12 +1436,14 @@ void BuildRenderItems_MirroredSkull()
 	skullRitem->BaseVertexLocation = skullSubMesh.BaseVertexLocation;
 	gSkullRitem = skullRitem.get();
 	RenderItemLayers[(int)ERenderLayer::Opaque].push_back(skullRitem.get());
-	AllRitems.push_back(std::move(skullRitem));
+	
 
 	// Reflected skull will have different world matrix, so it needs to be its own render item.
 	auto reflectedSkullRitem = std::make_unique<RenderItem>();
 	*reflectedSkullRitem = *skullRitem;
 	reflectedSkullRitem->ObjectCBIndex = 3;
+	reflectedSkullRitem->StencilRef = 2;
+	reflectedSkullRitem->World = skullRitem->World * fb::MatrixReflect(glm::vec4(0, 0, 1, 0));
 	gReflectedSkullRitem = reflectedSkullRitem.get();
 	RenderItemLayers[(int)ERenderLayer::Reflected].push_back(reflectedSkullRitem.get());
 	AllRitems.push_back(std::move(reflectedSkullRitem));
@@ -1401,19 +1456,31 @@ void BuildRenderItems_MirroredSkull()
 	gShadowedSkullRitem = shadowedSkullRitem.get();
 	RenderItemLayers[(int)ERenderLayer::Shadow].push_back(shadowedSkullRitem.get());
 	AllRitems.push_back(std::move(shadowedSkullRitem));
+	
+	AllRitems.push_back(std::move(skullRitem));
 
 	auto mirrorRitem = std::make_unique<RenderItem>();
 	mirrorRitem->ObjectCBIndex = 5;
 	mirrorRitem->Mat = Materials["icemirror"].get();
+	mirrorRitem->VB = roomGeom->VertexBuffer;
+	mirrorRitem->IB = roomGeom->IndexBuffer;
 	auto& mirrorSubMesh = roomGeom->DrawArgs["mirror"];
 	mirrorRitem->IndexCount = mirrorSubMesh.IndexCount;
 	mirrorRitem->StartIndexLocation = mirrorSubMesh.StartIndexLocation;
 	mirrorRitem->BaseVertexLocation = mirrorSubMesh.BaseVertexLocation;
-	RenderItemLayers[(int)ERenderLayer::Mirrors].push_back(mirrorRitem.get());
-	RenderItemLayers[(int)ERenderLayer::Transparent].push_back(mirrorRitem.get());
-	AllRitems.push_back(std::move(mirrorRitem));
-}
+	mirrorRitem->StencilRef = 1;
+	RenderItemLayers[(int)ERenderLayer::Opaque].push_back(mirrorRitem.get());
 
+	auto mirrorRitemBlending = std::make_unique<RenderItem>();
+	*mirrorRitemBlending = *mirrorRitem;
+	mirrorRitemBlending->StencilRef = 2;
+	RenderItemLayers[(int)ERenderLayer::TransparentMirror].push_back(mirrorRitemBlending.get());
+
+	AllRitems.push_back(std::move(mirrorRitem));
+	AllRitems.push_back(std::move(mirrorRitemBlending));
+	
+}
+/*
 void BuildRenderItems_Wave()
 {
 	auto wavesRitem = std::make_unique<RenderItem>();
@@ -1428,7 +1495,7 @@ void BuildRenderItems_Wave()
 	wavesRitem->StartIndexLocation = waterGeo->DrawArgs["grid"].StartIndexLocation;
 	wavesRitem->BaseVertexLocation = waterGeo->DrawArgs["grid"].BaseVertexLocation;
 	gWavesRitem = wavesRitem.get();
-	RenderItemLayers[(int)ERenderLayer::AlphaBlended].push_back(wavesRitem.get());
+	RenderItemLayers[(int)ERenderLayer::Transparent].push_back(wavesRitem.get());
 	AllRitems.push_back(std::move(wavesRitem));
 
 	auto gridRitem = std::make_unique<RenderItem>();
@@ -1459,7 +1526,7 @@ void BuildRenderItems_Wave()
 	RenderItemLayers[(int)ERenderLayer::AlphaTested].push_back(crateItem.get());
 	AllRitems.push_back(std::move(crateItem));
 }
-
+*/
 void DestroyRenderItems()
 {
 	AllRitems.clear();
@@ -1526,6 +1593,7 @@ void DrawRenderItems(const std::vector<RenderItem*>& ritems)
 		if (ri->Mat->DiffuseSrvHeapIndex != -1) {
 			gRenderer->SetGraphicsRootDescriptorTable(3, DescriptorHeap, ri->Mat->DiffuseSrvHeapIndex);
 		}
+		gRenderer->SetStencilRef(ri->StencilRef);
 		gRenderer->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0 );
 	}
 }
@@ -1556,20 +1624,26 @@ void Draw(float dt)
 		DescriptorHeap->Bind();
 	gRootSignature->Bind();
 
+	// Opaque
 	gRenderer->SetGraphicsRootConstantBufferView(2, curFR.CBPerFrame, 0);
-
 	DrawRenderItems(RenderItemLayers[(int)ERenderLayer::Opaque]);
 
-	auto alphaTestedPSO = PSOs.find("AlphaTested");
+	// Draw the reflection into the mirror only (only for pixels where the stencil buffer is 1).
+	// Note that we must supply a different per-pass constant buffer--one with the lights reflected.
+	gRenderer->SetGraphicsRootConstantBufferView(2, curFR.CBPerFrame, 1);
+	gRenderer->SetPipelineState(PSOs["drawStencilReflections"]);
+	DrawRenderItems(RenderItemLayers[(int)ERenderLayer::Reflected]);
+
+	/*auto alphaTestedPSO = PSOs.find("AlphaTested");
 	if (alphaTestedPSO != PSOs.end()) {
 		gRenderer->SetPipelineState(alphaTestedPSO->second);
 		DrawRenderItems(RenderItemLayers[(int)ERenderLayer::AlphaTested]);
-	}
+	}*/
 
-	auto alphaBlendedPSO = PSOs.find("AlphaBlended");
-	if (alphaBlendedPSO != PSOs.end()) {
-		gRenderer->SetPipelineState(alphaBlendedPSO->second);
-		DrawRenderItems(RenderItemLayers[(int)ERenderLayer::AlphaBlended]);
+	auto transparentMirrorPSO = PSOs.find("TransparentMirror");
+	if (transparentMirrorPSO != PSOs.end()) {
+		gRenderer->SetPipelineState(transparentMirrorPSO->second);
+		DrawRenderItems(RenderItemLayers[(int)ERenderLayer::TransparentMirror]);
 	}
 
 	gAxisRenderer->Render();

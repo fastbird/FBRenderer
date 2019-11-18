@@ -830,6 +830,11 @@ UINT64 RendererD3D12::SignalFence()
 	return fenceNumber;
 }
 
+void RendererD3D12::SetStencilRef(UINT stencilRef)
+{
+	CommandList->OMSetStencilRef(stencilRef);
+}
+
 void RendererD3D12::TempDrawIndexedInstanced(UINT indexCount)
 {
 	CommandList->DrawIndexedInstanced(indexCount, 1, 0, 0, 0);

@@ -98,6 +98,7 @@ namespace fb
 		virtual void ClearRenderTargetDepthStencil(float clearColor[4]) override;
 		virtual void SetDefaultRenderTargets() override;
 		virtual UINT64 SignalFence() override;
+		virtual void SetStencilRef(UINT stencilRef) override;
 
 		virtual void TempResetCommandList() override;
 		virtual void TempCreateRootSignatureForSimpleBox() override;
