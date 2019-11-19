@@ -87,6 +87,7 @@ PassConstants ReflectedPassConstants;
 RenderItem* gSkullRitem = nullptr;
 RenderItem* gReflectedSkullRitem = nullptr;
 RenderItem* gShadowedSkullRitem = nullptr;
+glm::vec3 gSkullTranslation(0.f, 1.f, -5.f);
 enum class ERenderLayer : int
 {
 	Opaque = 0,
@@ -149,7 +150,7 @@ void BuildWaves();
 void LoadTextures();
 void BuildShaderResourceView();
 void Draw(float dt);
-void OnKeyboardInput();
+void OnKeyboardInput(float dt);
 void BuildMaterials_MirroredSkull();
 void BuildMaterials_Wave();
 void BuildRoomGeometry();
@@ -684,7 +685,7 @@ void Update(float dt)
 	static float TotalTime = 0;
 	TotalTime += dt;
 
-	OnKeyboardInput();
+	OnKeyboardInput(dt);
 
 	auto& curFR = GetFrameResource_WaitAvailable(CurrentFrameResourceIndex);
 
@@ -971,6 +972,7 @@ void BuildPSO()
 	blendDesc.LogicOp = fb::ELogicOp::NOOP;
 	blendDesc.RenderTargetWriteMask = fb::EColorWriteEnable::ALL;
 	alphaBlendedPSODesc.BlendState.RenderTarget[0] = blendDesc;
+	alphaBlendedPSODesc.DepthStencilState.DepthEnable = false;
 	alphaBlendedPSODesc.DepthStencilState.StencilEnable = true;
 	alphaBlendedPSODesc.DepthStencilState.FrontFace.StencilFunc = fb::EComparisonFunc::EQUAL;
 	alphaBlendedPSODesc.RasterizerState.FrontCounterClockwise = true;
@@ -981,14 +983,25 @@ void BuildPSO()
 	// PSO for stencil reflections.
 	//
 	fb::FPSODesc reflectionPSODesc = psoDesc;
-	reflectionPSODesc.DepthStencilState.DepthEnable = true;
+	reflectionPSODesc.DepthStencilState.DepthEnable = false;
 	reflectionPSODesc.DepthStencilState.StencilEnable = true;
 	reflectionPSODesc.DepthStencilState.FrontFace.StencilFunc = fb::EComparisonFunc::EQUAL;
-	reflectionPSODesc.DepthStencilState.FrontFace.StencilPassOp = fb::EStencilOp::REPLACE;
+	reflectionPSODesc.DepthStencilState.FrontFace.StencilPassOp = fb::EStencilOp::INCR;
 	reflectionPSODesc.DepthStencilState.BackFace.StencilFunc = fb::EComparisonFunc::EQUAL;
-	reflectionPSODesc.DepthStencilState.BackFace.StencilPassOp = fb::EStencilOp::REPLACE;
+	reflectionPSODesc.DepthStencilState.BackFace.StencilPassOp = fb::EStencilOp::INCR;
 	reflectionPSODesc.RasterizerState.FrontCounterClockwise = false;
 	PSOs["drawStencilReflections"] = gRenderer->CreateGraphicsPipelineState(reflectionPSODesc);
+
+	//
+	// PSO for shadow
+	//
+	fb::FPSODesc shadowPSODesc = alphaBlendedPSODesc;
+	fb::FDepthStencilDesc depthStencilState;
+	depthStencilState.StencilEnable = true;
+	depthStencilState.FrontFace.StencilFunc = fb::EComparisonFunc::EQUAL;
+	depthStencilState.FrontFace.StencilPassOp = fb::EStencilOp::INCR_SAT;
+	shadowPSODesc.DepthStencilState = depthStencilState;
+	PSOs["shadow"] = gRenderer->CreateGraphicsPipelineState(shadowPSODesc);
 
 	// Wireframe
 	psoDesc.RasterizerState.FillMode = fb::EFillMode::WIREFRAME;
@@ -1442,8 +1455,8 @@ void BuildRenderItems_MirroredSkull()
 	auto reflectedSkullRitem = std::make_unique<RenderItem>();
 	*reflectedSkullRitem = *skullRitem;
 	reflectedSkullRitem->ObjectCBIndex = 3;
-	reflectedSkullRitem->StencilRef = 2;
-	reflectedSkullRitem->World = skullRitem->World * fb::MatrixReflect(glm::vec4(0, 0, 1, 0));
+	reflectedSkullRitem->StencilRef = 1;
+	reflectedSkullRitem->World = fb::MatrixReflect(glm::vec4(0, 0, 1, 0)) * skullRitem->World;
 	gReflectedSkullRitem = reflectedSkullRitem.get();
 	RenderItemLayers[(int)ERenderLayer::Reflected].push_back(reflectedSkullRitem.get());
 	AllRitems.push_back(std::move(reflectedSkullRitem));
@@ -1646,6 +1659,13 @@ void Draw(float dt)
 		DrawRenderItems(RenderItemLayers[(int)ERenderLayer::TransparentMirror]);
 	}
 
+	auto shadowPSO = PSOs.find("shadow");
+	if (shadowPSO != PSOs.end()) {
+		gRenderer->SetStencilRef(0);
+		gRenderer->SetPipelineState(shadowPSO->second);
+		DrawRenderItems(RenderItemLayers[(int)ERenderLayer::Shadow]);
+	}
+
 	gAxisRenderer->Render();
 
 	gRenderer->ResourceBarrier_Backbuffer_RenderTargetToPresent();
@@ -1657,10 +1677,50 @@ void Draw(float dt)
 	 curFR.Fence = gRenderer->SignalFence();
 }
 
-void OnKeyboardInput()
+void OnKeyboardInput(float dt)
 {
 	if (GetAsyncKeyState('1') & 0x8000)
 		IsWireframe = true;
 	else
 		IsWireframe = false;
+
+	if (gSkullRitem)
+	{
+		if (GetAsyncKeyState('A') & 0x8000)
+			gSkullTranslation.x -= 1.0f * dt;
+
+		if (GetAsyncKeyState('D') & 0x8000)
+			gSkullTranslation.x += 1.0f * dt;
+
+		if (GetAsyncKeyState('W') & 0x8000)
+			gSkullTranslation.y += 1.0f * dt;
+
+		if (GetAsyncKeyState('S') & 0x8000)
+			gSkullTranslation.y -= 1.0f * dt;
+
+		// Don't let user move below ground plane.
+		gSkullTranslation.y = std::max(gSkullTranslation.y, 0.0f);
+
+		// Update the new world matrix.
+		glm::mat4 skullRotate = glm::rotate(glm::half_pi<float>(), glm::vec3(0, 1, 0));
+		glm::mat4 skullScale = glm::scale(glm::vec3(0.45f, 0.45f, 0.45f));
+		glm::mat4 skullOffset = glm::translate(gSkullTranslation);
+		gSkullRitem->World = skullOffset * skullRotate * skullScale;
+
+		if (gReflectedSkullRitem) {
+			// Update reflection world matrix.
+			gReflectedSkullRitem->World = fb::MatrixReflect(glm::vec4(0, 0, 1.f, 0)) * gSkullRitem->World;
+		}
+
+		// Update shadow world matrix.
+		glm::vec4 shadowPlane(0.0f, 1.0f, 0.0f, 0.0f); // xz plane
+		glm::vec3 toMainLight = -MainPassConstants.Lights[0].Direction;
+		glm::mat4 S = fb::MatrixShadow(shadowPlane, glm::vec4(toMainLight, 0.f));
+		glm::mat4 shadowOffsetY = glm::translate(glm::vec3(0.0f, 0.001f, 0.0f));
+		gShadowedSkullRitem->World = shadowOffsetY * S * gSkullRitem->World;
+
+		gSkullRitem->NumFramesDirty = NUM_SWAPCHAIN_BUFFERS;
+		gReflectedSkullRitem->NumFramesDirty = NUM_SWAPCHAIN_BUFFERS;
+		gShadowedSkullRitem->NumFramesDirty = NUM_SWAPCHAIN_BUFFERS;
+	}
 }
