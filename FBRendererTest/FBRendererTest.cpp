@@ -1001,6 +1001,7 @@ void BuildPSO()
 	depthStencilState.FrontFace.StencilFunc = fb::EComparisonFunc::EQUAL;
 	depthStencilState.FrontFace.StencilPassOp = fb::EStencilOp::INCR_SAT;
 	shadowPSODesc.DepthStencilState = depthStencilState;
+	shadowPSODesc.RasterizerState.DepthBias = -100;
 	PSOs["shadow"] = gRenderer->CreateGraphicsPipelineState(shadowPSODesc);
 
 	// Wireframe
@@ -1465,6 +1466,7 @@ void BuildRenderItems_MirroredSkull()
 	auto shadowedSkullRitem = std::make_unique<RenderItem>();
 	*shadowedSkullRitem = *skullRitem;
 	shadowedSkullRitem->ObjectCBIndex = 4;
+	shadowedSkullRitem->StencilRef = 0;
 	shadowedSkullRitem->Mat = Materials["shadowMat"].get();
 	gShadowedSkullRitem = shadowedSkullRitem.get();
 	RenderItemLayers[(int)ERenderLayer::Shadow].push_back(shadowedSkullRitem.get());
@@ -1661,7 +1663,6 @@ void Draw(float dt)
 
 	auto shadowPSO = PSOs.find("shadow");
 	if (shadowPSO != PSOs.end()) {
-		gRenderer->SetStencilRef(0);
 		gRenderer->SetPipelineState(shadowPSO->second);
 		DrawRenderItems(RenderItemLayers[(int)ERenderLayer::Shadow]);
 	}
@@ -1716,8 +1717,9 @@ void OnKeyboardInput(float dt)
 		glm::vec4 shadowPlane(0.0f, 1.0f, 0.0f, 0.0f); // xz plane
 		glm::vec3 toMainLight = -MainPassConstants.Lights[0].Direction;
 		glm::mat4 S = fb::MatrixShadow(shadowPlane, glm::vec4(toMainLight, 0.f));
-		glm::mat4 shadowOffsetY = glm::translate(glm::vec3(0.0f, 0.001f, 0.0f));
-		gShadowedSkullRitem->World = shadowOffsetY * S * gSkullRitem->World;
+		//glm::mat4 shadowOffsetY = glm::translate(glm::vec3(0.0f, 0.001f, 0.0f));
+		//gShadowedSkullRitem->World = shadowOffsetY * S * gSkullRitem->World;
+		gShadowedSkullRitem->World = S * gSkullRitem->World;
 
 		gSkullRitem->NumFramesDirty = NUM_SWAPCHAIN_BUFFERS;
 		gReflectedSkullRitem->NumFramesDirty = NUM_SWAPCHAIN_BUFFERS;
