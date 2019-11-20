@@ -95,6 +95,7 @@ enum class ERenderLayer : int
 	Reflected,
 	Shadow,
 	TransparentMirror,
+	Transparent,
 	Count
 };
 
@@ -141,17 +142,21 @@ void DestroyGeometries();
 
 void BuildWavesGeometryBuffers();
 
-void BuildPSO();
+void BuildPSO_Skull();
+void BuildPSO_Wave();
 
 void BuildShapeGeometry();
 void BuildRenderItems_Wave();
 void BuildRenderItems_MirroredSkull();
 void BuildWaves();
-void LoadTextures();
-void BuildShaderResourceView();
-void Draw(float dt);
+void LoadTextures_Skull();
+void LoadTextures_Wave();
+void BuildShaderResourceView_Skull();
+void BuildShaderResourceView_Wave();
+void Draw_Wave(float dt);
+void Draw_Skull(float dt);
 void OnKeyboardInput(float dt);
-void BuildMaterials_MirroredSkull();
+void BuildMaterials_Skull();
 void BuildMaterials_Wave();
 void BuildRoomGeometry();
 void BuildSkullGeometry();
@@ -212,7 +217,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			Update(dt);
 			if (gRenderer)
 			{
-				Draw(dt);
+				Draw_Wave(dt);
 				using namespace std::chrono_literals;
 				std::this_thread::sleep_for(5ms);
 			}
@@ -297,27 +302,29 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    gRenderer = fb::InitRenderer(fb::RendererType::D3D12, (void*)WindowHandle);
 
    BuildFrameResources();
-   BuildMaterials_MirroredSkull();
+   //BuildMaterials_Skull();
+   BuildMaterials_Wave();
 
    gRenderer->ResetCommandList(nullptr, 0);
    std::wcout << L"Reset Command List" << std::endl;
 
    BuildShapeGeometry();
 
-   LoadTextures();
+   LoadTextures_Wave();
 
-   BuildShaderResourceView();
+   BuildShaderResourceView_Wave();
 
    BuildShadersAndInputLayout();
 
-   //BuildWaves();
-   //BuildLandGeometry();
-	//BuildWavesGeometryBuffers();
+   BuildWaves();
+   BuildLandGeometry();
+   BuildWavesGeometryBuffers();
 
-   BuildRoomGeometry();
-   BuildSkullGeometry();
+   //BuildRoomGeometry();
+   //BuildSkullGeometry();
 
-   BuildRenderItems_MirroredSkull();
+   //BuildRenderItems_Skull();
+   BuildRenderItems_Wave();
 
    BuildConstantBuffers((int)AllRitems.size(), (int)Materials.size() , 2);
    
@@ -328,7 +335,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    std::wcout << L"Root sig." << std::endl;
 
-   BuildPSO();
+   BuildPSO_Wave();
 
    std::wcout << L"Build PSO." << std::endl;
 
@@ -714,12 +721,12 @@ void Update(float dt)
 	MainPassConstants.EyePosW = gEyePos;
 	curFR.CBPerFrame->CopyData(0, &MainPassConstants);*/
 
-	//AnimateMaterials(dt);
+	AnimateMaterials(dt);
 	UpdateObjectCBs(dt, curFR);
 	UpdateMaterialCBs(dt, curFR);
 	UpdateMainPassCB(dt, TotalTime, curFR);
-	UpdateReflectedPassCB(dt, curFR);
-	//UpdateWaves(dt, curFR);
+	//UpdateReflectedPassCB(dt, curFR);
+	UpdateWaves(dt, curFR);
 }
 
 void OnMouseMove(WPARAM btnState, int x, int y)
@@ -792,7 +799,12 @@ void BuildShadersAndInputLayout()
 
 	Shaders["standardVS"] = gRenderer->CompileShader(L"Shaders/Default.hlsl", nullptr, fb::EShaderType::VertexShader, "VS");
 	Shaders["opaquePS"] = gRenderer->CompileShader(L"Shaders/Default.hlsl", defines, fb::EShaderType::PixelShader, "PS");
-	Shaders["alphaTestedPS"] = gRenderer->CompileShader(L"Shaders\\Default.hlsl", alphaTestDefines, fb::EShaderType::PixelShader, "PS");
+	Shaders["alphaTestedPS"] = gRenderer->CompileShader(L"Shaders/Default.hlsl", alphaTestDefines, fb::EShaderType::PixelShader, "PS");
+
+
+	Shaders["treeSpriteVS"] = gRenderer->CompileShader(L"Shaders/TreeSprite.hlsl", nullptr, fb::EShaderType::VertexShader, "VS");
+	Shaders["treeSpriteGS"] = gRenderer->CompileShader(L"Shaders/TreeSprite.hlsl", nullptr, fb::EShaderType::GeometryShader, "GS");
+	Shaders["treeSpritePS"] = gRenderer->CompileShader(L"Shaders/TreeSprite.hlsl", alphaTestDefines,  fb::EShaderType::PixelShader, "PS");
 
 	InputLayout = {
 		{ "POSITION", 0, fb::EDataFormat::R32G32B32_FLOAT, 0, 0, fb::EInputClassification::PerVertexData, 0 },
@@ -911,7 +923,59 @@ void BuildWavesGeometryBuffers()
 	Geometries["waterGeo"] = std::move(geo);
 }
 
-void BuildPSO()
+void BuildPSO_Wave()
+{
+	fb::FPSODesc psoDesc;
+	psoDesc.InputLayout = { InputLayout.data(), (UINT)InputLayout.size() };
+	psoDesc.pRootSignature = gRootSignature;
+	psoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(Shaders["standardVS"]->GetByteCode()),
+		Shaders["standardVS"]->Size()
+	};
+	psoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(Shaders["opaquePS"]->GetByteCode()),
+		Shaders["opaquePS"]->Size()
+	};
+	psoDesc.PrimitiveTopologyType = fb::EPrimitiveTopologyType::TRIANGLE;
+	psoDesc.NumRenderTargets = 1;
+	psoDesc.RasterizerState.CullMode = fb::ECullMode::FRONT;
+	psoDesc.RTVFormats[0] = gRenderer->GetBackBufferFormat();
+	psoDesc.SampleDesc.Count = gRenderer->GetSampleCount();
+	psoDesc.SampleDesc.Quality = gRenderer->GetMsaaQuality();
+	psoDesc.DSVFormat = gRenderer->GetDepthStencilFormat();
+	PSOs["Default"] = gRenderer->CreateGraphicsPipelineState(psoDesc);
+
+	fb::FPSODesc alphaTestedPSODesc = psoDesc;
+	alphaTestedPSODesc.PS =
+	{
+		reinterpret_cast<BYTE*>(Shaders["alphaTestedPS"]->GetByteCode()),
+		Shaders["alphaTestedPS"]->Size()
+	};
+	alphaTestedPSODesc.RasterizerState.CullMode = fb::ECullMode::NONE;
+	PSOs["AlphaTested"] = gRenderer->CreateGraphicsPipelineState(alphaTestedPSODesc);
+
+	fb::FPSODesc alphaBlendedPSODesc = psoDesc;
+	fb::FRenderTargetBlendDesc blendDesc;
+	blendDesc.BlendEnable = true;
+	blendDesc.LogicOpEnable = false;
+	blendDesc.SrcBlend = fb::EBlend::SRC_ALPHA;
+	blendDesc.DestBlend = fb::EBlend::INV_SRC_ALPHA;
+	blendDesc.BlendOp = fb::EBlendOp::ADD;
+	blendDesc.SrcBlendAlpha = fb::EBlend::ONE;
+	blendDesc.DestBlendAlpha = fb::EBlend::ZERO;
+	blendDesc.BlendOpAlpha = fb::EBlendOp::ADD;
+	blendDesc.LogicOp = fb::ELogicOp::NOOP;
+	blendDesc.RenderTargetWriteMask = fb::EColorWriteEnable::ALL;
+	alphaBlendedPSODesc.BlendState.RenderTarget[0] = blendDesc;
+	PSOs["AlphaBlended"] = gRenderer->CreateGraphicsPipelineState(alphaBlendedPSODesc);
+
+	psoDesc.RasterizerState.FillMode = fb::EFillMode::WIREFRAME;
+	PSOs["Wireframe"] = gRenderer->CreateGraphicsPipelineState(psoDesc);
+}
+
+void BuildPSO_Skull()
 {
 	//
 	// Opaque
@@ -1326,7 +1390,7 @@ void BuildRoomGeometry()
 	Geometries[geo->Name] = std::move(geo);
 }
 
-void BuildMaterials_MirroredSkull()
+void BuildMaterials_Skull()
 {
 	auto bricks = std::make_unique<Material>();
 	bricks->Name = "bricks";
@@ -1495,7 +1559,7 @@ void BuildRenderItems_MirroredSkull()
 	AllRitems.push_back(std::move(mirrorRitemBlending));
 	
 }
-/*
+
 void BuildRenderItems_Wave()
 {
 	auto wavesRitem = std::make_unique<RenderItem>();
@@ -1541,7 +1605,7 @@ void BuildRenderItems_Wave()
 	RenderItemLayers[(int)ERenderLayer::AlphaTested].push_back(crateItem.get());
 	AllRitems.push_back(std::move(crateItem));
 }
-*/
+
 void DestroyRenderItems()
 {
 	AllRitems.clear();
@@ -1558,7 +1622,16 @@ void BuildWaves()
 	}
 }
 
-void LoadTextures()
+void LoadTextures_Wave()
+{
+	Textures["grassTex"] = gRenderer->LoadTexture(L"Textures/grass.dds");
+	Textures["waterTex"] = gRenderer->LoadTexture(L"Textures/water1.dds");
+	Textures["woodCrateTex"] = gRenderer->LoadTexture(L"Textures/WoodCrate01.dds");
+	Textures["wireFenceTex"] = gRenderer->LoadTexture(L"Textures/WireFence.dds");
+	Textures["treeArrayTex"] = gRenderer->LoadTexture(L"Textures/treeArray2.dds");
+}
+
+void LoadTextures_Skull()
 {
 	Textures["grassTex"] = gRenderer->LoadTexture(L"Textures/grass.dds");
 	Textures["waterTex"] = gRenderer->LoadTexture(L"Textures/water1.dds");
@@ -1569,9 +1642,27 @@ void LoadTextures()
 	Textures["iceTex"] = gRenderer->LoadTexture(L"Textures/ice.dds");
 	Textures["white1x1Tex"] = gRenderer->LoadTexture(L"Textures/white1x1.dds");
 }
-const UINT Num_CBV_SRV_UAV = 4;
-void BuildShaderResourceView()
+
+void BuildShaderResourceView_Wave()
 {
+	const UINT Num_CBV_SRV_UAV = 4;
+	if (!DescriptorHeap)
+		DescriptorHeap = gRenderer->CreateDescriptorHeap(fb::EDescriptorHeapType::CBV_SRV_UAV, Num_CBV_SRV_UAV);
+
+	assert(Textures["woodCrateTex"]);
+	auto result = DescriptorHeap->CreateDescriptor(0, Textures["grassTex"]);
+	assert(result);
+	result = DescriptorHeap->CreateDescriptor(1, Textures["waterTex"]);
+	assert(result);
+	result = DescriptorHeap->CreateDescriptor(2, Textures["wireFenceTex"]);
+	assert(result);
+	result = DescriptorHeap->CreateDescriptor(2, Textures["treeArrayTex"]);
+	assert(result);
+
+}
+void BuildShaderResourceView_Skull()
+{
+	const UINT Num_CBV_SRV_UAV = 4;
 	if (!DescriptorHeap)
 		DescriptorHeap = gRenderer->CreateDescriptorHeap(fb::EDescriptorHeapType::CBV_SRV_UAV, Num_CBV_SRV_UAV);
 
@@ -1613,7 +1704,60 @@ void DrawRenderItems(const std::vector<RenderItem*>& ritems)
 	}
 }
 
-void Draw(float dt)
+void Draw_Wave(float dt)
+{
+	auto& curFR = GetFrameResource(CurrentFrameResourceIndex);
+	auto cmdListAlloc = curFR.CommandAllocator;
+	cmdListAlloc->Reset();
+	auto defaultPSO = PSOs.find("Default");
+	if (defaultPSO == PSOs.end())
+		return;
+
+	if (IsWireframe) {
+		auto wireFramePSO = PSOs.find("Wireframe");
+		gRenderer->ResetCommandList(cmdListAlloc, wireFramePSO->second);
+	}
+	else {
+		gRenderer->ResetCommandList(cmdListAlloc, defaultPSO->second);
+	}
+
+	gRenderer->SetViewportAndScissor(0, 0, Width, Height);
+	gRenderer->ResourceBarrier_Backbuffer_PresentToRenderTarget();
+	gRenderer->ClearRenderTargetDepthStencil((float*)&MainPassConstants.FogColor);
+	gRenderer->SetDefaultRenderTargets();
+
+	if (DescriptorHeap)
+		DescriptorHeap->Bind();
+	gRootSignature->Bind();
+
+	gRenderer->SetGraphicsRootConstantBufferView(2, curFR.CBPerFrame, 0);
+
+	DrawRenderItems(RenderItemLayers[(int)ERenderLayer::Opaque]);
+
+	auto alphaTestedPSO = PSOs.find("AlphaTested");
+	if (alphaTestedPSO != PSOs.end()) {
+		gRenderer->SetPipelineState(alphaTestedPSO->second);
+		DrawRenderItems(RenderItemLayers[(int)ERenderLayer::AlphaTested]);
+	}
+
+	auto alphaBlendedPSO = PSOs.find("AlphaBlended");
+	if (alphaBlendedPSO != PSOs.end()) {
+		gRenderer->SetPipelineState(alphaBlendedPSO->second);
+		DrawRenderItems(RenderItemLayers[(int)ERenderLayer::Transparent]);
+	}
+
+	gAxisRenderer->Render();
+
+	gRenderer->ResourceBarrier_Backbuffer_RenderTargetToPresent();
+
+	gRenderer->CloseCommandList();
+	gRenderer->ExecuteCommandList();
+	gRenderer->PresentAndSwapBuffer();
+
+	curFR.Fence = gRenderer->SignalFence();
+}
+
+void Draw_Skull(float dt)
 {
 	auto& curFR = GetFrameResource(CurrentFrameResourceIndex);
 	auto cmdListAlloc = curFR.CommandAllocator;
