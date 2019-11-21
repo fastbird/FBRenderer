@@ -162,11 +162,11 @@ void LoadTextures_Skull();
 void LoadTextures_Wave();
 void BuildShaderResourceView_Skull();
 void BuildShaderResourceView_Wave();
+void BuildMaterials_Skull();
+void BuildMaterials_Wave();
 void Draw_Wave(float dt);
 void Draw_Skull(float dt);
 void OnKeyboardInput(float dt);
-void BuildMaterials_Skull();
-void BuildMaterials_Wave();
 void BuildRoomGeometry();
 void BuildSkullGeometry();
 
