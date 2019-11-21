@@ -37,6 +37,12 @@ struct Vertex
 	}
 };
 
+struct TreeSpriteVertex
+{
+	glm::vec3 Pos;
+	glm::vec2 Size;
+};
+
 struct SubmeshGeometry
 {
 	UINT IndexCount = 0;
@@ -92,6 +98,7 @@ enum class ERenderLayer : int
 {
 	Opaque = 0,
 	AlphaTested,
+	AlphaTestedTreeSprites,
 	Reflected,
 	Shadow,
 	TransparentMirror,
@@ -99,7 +106,8 @@ enum class ERenderLayer : int
 	Count
 };
 
-std::vector<fb::FInputElementDesc> InputLayout;
+std::vector<fb::FInputElementDesc> StandardInputLayout;
+std::vector<fb::FInputElementDesc> BillboardInputLayout;
 std::vector<RenderItem*> RenderItemLayers[(int)ERenderLayer::Count];
 
 UINT PassCbvOffset = 0;
@@ -146,6 +154,7 @@ void BuildPSO_Skull();
 void BuildPSO_Wave();
 
 void BuildShapeGeometry();
+void BuildTreeSpritesGeometry();
 void BuildRenderItems_Wave();
 void BuildRenderItems_MirroredSkull();
 void BuildWaves();
@@ -309,6 +318,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    std::wcout << L"Reset Command List" << std::endl;
 
    BuildShapeGeometry();
+   BuildTreeSpritesGeometry();
 
    LoadTextures_Wave();
 
@@ -590,9 +600,7 @@ void UpdateMainPassCB(float dt, float totalTime, FFrameResource& curFR)
 	MainPassConstants.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
 	MainPassConstants.Lights[2].Strength = { 0.15f, 0.15f, 0.15f };
 
-	// Main pass stored in index 2
-	auto currPassCB = curFR.CBPerFrame.get();
-	currPassCB->CopyData(0, &MainPassConstants);
+	curFR.CBPerFrame->CopyData(0, &MainPassConstants);
 }
 
 void UpdateReflectedPassCB(float dt, FFrameResource& curFR)
@@ -608,7 +616,6 @@ void UpdateReflectedPassCB(float dt, FFrameResource& curFR)
 		ReflectedPassConstants.Lights[i].Direction = R * glm::vec4(MainPassConstants.Lights[i].Direction, 0);
 	}
 
-	// Reflected pass stored in index 1
 	curFR.CBPerFrame->CopyData(1, &ReflectedPassConstants);
 }
 
@@ -806,10 +813,15 @@ void BuildShadersAndInputLayout()
 	Shaders["treeSpriteGS"] = gRenderer->CompileShader(L"Shaders/TreeSprite.hlsl", nullptr, fb::EShaderType::GeometryShader, "GS");
 	Shaders["treeSpritePS"] = gRenderer->CompileShader(L"Shaders/TreeSprite.hlsl", alphaTestDefines,  fb::EShaderType::PixelShader, "PS");
 
-	InputLayout = {
+	StandardInputLayout = {
 		{ "POSITION", 0, fb::EDataFormat::R32G32B32_FLOAT, 0, 0, fb::EInputClassification::PerVertexData, 0 },
 		{ "NORMAL", 0, fb::EDataFormat::R32G32B32_FLOAT, 0, 12, fb::EInputClassification::PerVertexData, 0 },
 		{ "TEXCOORD", 0, fb::EDataFormat::R32G32_FLOAT, 0, 24, fb::EInputClassification::PerVertexData, 0 },
+	};
+
+	BillboardInputLayout = {
+		{ "POSITION", 0, fb::EDataFormat::R32G32B32_FLOAT, 0, 0, fb::EInputClassification::PerVertexData, 0 },
+		{ "SIZE", 0, fb::EDataFormat::R32G32_FLOAT, 0, 12, fb::EInputClassification::PerVertexData, 0 },
 	};
 }
 
@@ -926,7 +938,7 @@ void BuildWavesGeometryBuffers()
 void BuildPSO_Wave()
 {
 	fb::FPSODesc psoDesc;
-	psoDesc.InputLayout = { InputLayout.data(), (UINT)InputLayout.size() };
+	psoDesc.InputLayout = { StandardInputLayout.data(), (UINT)StandardInputLayout.size() };
 	psoDesc.pRootSignature = gRootSignature;
 	psoDesc.VS =
 	{
@@ -971,6 +983,30 @@ void BuildPSO_Wave()
 	alphaBlendedPSODesc.BlendState.RenderTarget[0] = blendDesc;
 	PSOs["AlphaBlended"] = gRenderer->CreateGraphicsPipelineState(alphaBlendedPSODesc);
 
+	//
+	// PSO for tree sprites
+	//
+	fb::FPSODesc treeSpritePsoDesc = psoDesc;
+	treeSpritePsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(Shaders["treeSpriteVS"]->GetByteCode()),
+		Shaders["treeSpriteVS"]->Size()
+	};
+	treeSpritePsoDesc.GS =
+	{
+		reinterpret_cast<BYTE*>(Shaders["treeSpriteGS"]->GetByteCode()),
+		Shaders["treeSpriteGS"]->Size()
+	};
+	treeSpritePsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(Shaders["treeSpritePS"]->GetByteCode()),
+		Shaders["treeSpritePS"]->Size()
+	};
+	treeSpritePsoDesc.PrimitiveTopologyType = fb::EPrimitiveTopologyType::POINT;
+	treeSpritePsoDesc.InputLayout = { BillboardInputLayout.data(), (UINT)BillboardInputLayout.size() };
+	treeSpritePsoDesc.RasterizerState.CullMode = fb::ECullMode::NONE;
+	PSOs["treeSprites"] = gRenderer->CreateGraphicsPipelineState(treeSpritePsoDesc);
+
 	psoDesc.RasterizerState.FillMode = fb::EFillMode::WIREFRAME;
 	PSOs["Wireframe"] = gRenderer->CreateGraphicsPipelineState(psoDesc);
 }
@@ -981,7 +1017,7 @@ void BuildPSO_Skull()
 	// Opaque
 	//
 	fb::FPSODesc psoDesc;
-	psoDesc.InputLayout = { InputLayout.data(), (UINT)InputLayout.size() };
+	psoDesc.InputLayout = { StandardInputLayout.data(), (UINT)StandardInputLayout.size() };
 	psoDesc.pRootSignature = gRootSignature;
 	psoDesc.VS =
 	{
@@ -1228,6 +1264,40 @@ void BuildShapeGeometry()
 	}
 }
 
+void BuildTreeSpritesGeometry()
+{
+
+	static const int treeCount = 16;
+	std::array<TreeSpriteVertex, 16> vertices;
+	for (UINT i = 0; i < treeCount; ++i)
+	{
+		float x = fb::RandF(-45.0f, 45.0f);
+		float z = fb::RandF(-45.0f, 45.0f);
+		float y = GetHillsHeight(x, z);
+
+		// Move tree slightly above land height.
+		y += 8.0f;
+
+		vertices[i].Pos = glm::vec3(x, y, z);
+		vertices[i].Size = glm::vec2(20.0f, 20.0f);
+	}
+
+	/*std::array<std::uint16_t, 16> indices =
+	{
+		0, 1, 2, 3, 4, 5, 6, 7,
+		8, 9, 10, 11, 12, 13, 14, 15
+	};*/
+
+	const UINT vbByteSize = (UINT)vertices.size() * sizeof(TreeSpriteVertex);
+	//const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+	auto geo = std::make_unique<MeshGeometry>();
+	geo->Name = "treeSpritesGeo";
+	geo->VertexBuffer = gRenderer->CreateVertexBuffer(vertices.data(), vbByteSize, sizeof(TreeSpriteVertex), false);
+
+	Geometries["treeSpritesGeo"] = std::move(geo);
+}
+
 void BuildSkullGeometry()
 {
 	std::ifstream fin("Models/skull.txt");
@@ -1471,6 +1541,15 @@ void BuildMaterials_Wave()
 	crateMat->Roughness = 0.99999f;
 	Materials[crateMat->Name] = std::move(crateMat);
 
+	auto treeSprites = std::make_unique<Material>();
+	treeSprites->Name = "treeSprites";
+	treeSprites->MatCBIndex = 3;
+	treeSprites->DiffuseSrvHeapIndex = 3;
+	treeSprites->DiffuseAlbedo = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+	treeSprites->FresnelR0 = glm::vec3(0.01f, 0.01f, 0.01f);
+	treeSprites->Roughness = 0.125f;
+	Materials[treeSprites->Name] = std::move(treeSprites);
+
 }
 
 void BuildRenderItems_MirroredSkull()
@@ -1604,6 +1683,16 @@ void BuildRenderItems_Wave()
 	crateItem->BaseVertexLocation = crateGeo->DrawArgs["crate"].BaseVertexLocation;
 	RenderItemLayers[(int)ERenderLayer::AlphaTested].push_back(crateItem.get());
 	AllRitems.push_back(std::move(crateItem));
+
+	auto treeSpritesRitem = std::make_unique<RenderItem>();
+	treeSpritesRitem->ObjectCBIndex = 3;
+	treeSpritesRitem->Mat = Materials["treeSprites"].get();
+	auto& treeSpritesGeo = Geometries["treeSpritesGeo"];
+	treeSpritesRitem->VB = treeSpritesGeo->VertexBuffer;
+	treeSpritesRitem->PrimitiveTopology = fb::EPrimitiveTopology::POINTLIST;
+	treeSpritesRitem->IndexCount = treeSpritesGeo->VertexBuffer->GetNumVertices();
+	RenderItemLayers[(int)ERenderLayer::AlphaTestedTreeSprites].push_back(treeSpritesRitem.get());
+	AllRitems.push_back(std::move(treeSpritesRitem));
 }
 
 void DestroyRenderItems()
@@ -1656,7 +1745,7 @@ void BuildShaderResourceView_Wave()
 	assert(result);
 	result = DescriptorHeap->CreateDescriptor(2, Textures["wireFenceTex"]);
 	assert(result);
-	result = DescriptorHeap->CreateDescriptor(2, Textures["treeArrayTex"]);
+	result = DescriptorHeap->CreateDescriptor(3, Textures["treeArrayTex"]);
 	assert(result);
 
 }
@@ -1686,7 +1775,8 @@ void DrawRenderItems(const std::vector<RenderItem*>& ritems)
 		auto ri = ritems[i];
 
 		ri->VB->Bind(0);
-		ri->IB->Bind();
+		if (ri->IB)
+			ri->IB->Bind();
 		if (LastPrimitiveTopology != ri->PrimitiveTopology) {
 			gRenderer->SetPrimitiveTopology(ri->PrimitiveTopology);
 			LastPrimitiveTopology = ri->PrimitiveTopology;
@@ -1700,7 +1790,10 @@ void DrawRenderItems(const std::vector<RenderItem*>& ritems)
 			gRenderer->SetGraphicsRootDescriptorTable(3, DescriptorHeap, ri->Mat->DiffuseSrvHeapIndex);
 		}
 		gRenderer->SetStencilRef(ri->StencilRef);
-		gRenderer->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0 );
+		if (ri->IB)
+			gRenderer->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0 );
+		else
+			gRenderer->DrawInstanced(ri->IndexCount, 1, ri->BaseVertexLocation, 0);
 	}
 }
 
@@ -1738,6 +1831,11 @@ void Draw_Wave(float dt)
 	if (alphaTestedPSO != PSOs.end()) {
 		gRenderer->SetPipelineState(alphaTestedPSO->second);
 		DrawRenderItems(RenderItemLayers[(int)ERenderLayer::AlphaTested]);
+	}
+	auto treeSpritesPSO = PSOs.find("treeSprites");
+	if (treeSpritesPSO != PSOs.end()) {
+		gRenderer->SetPipelineState(treeSpritesPSO->second);
+		DrawRenderItems(RenderItemLayers[(int)ERenderLayer::AlphaTestedTreeSprites]);
 	}
 
 	auto alphaBlendedPSO = PSOs.find("AlphaBlended");
