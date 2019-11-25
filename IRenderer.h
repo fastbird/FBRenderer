@@ -13,6 +13,7 @@
 #include "IIndexBuffer.h"
 #include "IRootSignature.h"
 #include "IDescriptorHeap.h"
+#include "ResourceBarrier.h"
 
 namespace fb
 {
@@ -20,6 +21,7 @@ namespace fb
 	enum class RendererType {
 		D3D12
 	};	
+	
 
 	using DrawCallbackFunc = void (*)();
 	class IRenderer
@@ -64,6 +66,7 @@ namespace fb
 		virtual void SetGraphicsRootConstantBufferView(int rootParamIndex, IUploadBufferIPtr constantBuffer, int elementIndex) = 0;
 		virtual void SetGraphicsRootDescriptorTable(int rootParamIndex, IDescriptorHeapIPtr descriptorHeap, int index) = 0;
 		virtual void SetGraphicsRoot32BitConstants(UINT RootParameterIndex, UINT Num32BitValuesToSet, const void* pSrcData, UINT DestOffsetIn32BitValues) = 0;
+		virtual void SetComputeRoot32BitConstants(UINT RootParameterIndex, UINT Num32BitValuesToSet, const void* pSrcData, UINT DestOffsetIn32BitValues) = 0;
 		virtual void SetPrimitiveTopology(const fb::EPrimitiveTopology topology) = 0;
 		virtual void SetPipelineState(PSOID psoID) = 0;
 		virtual void DrawIndexedInstanced(UINT IndexCountPerInstance,
@@ -77,6 +80,8 @@ namespace fb
 			UINT StartInstanceLocation) = 0;
 		virtual void ResourceBarrier_Backbuffer_PresentToRenderTarget() = 0;
 		virtual void ResourceBarrier_Backbuffer_RenderTargetToPresent() = 0;
+		virtual void ResourceBarrierTransition(const ITextureIPtr& t, const FResourceBarrier& barrier) = 0;
+		virtual void CopyResource(const ITextureIPtr& dest, const ITextureIPtr& src) = 0;
 		virtual void SetViewportAndScissor(int x, int y, UINT width, UINT height) = 0;
 		virtual void ClearRenderTargetDepthStencil(float clearColor[4]) = 0;
 		virtual void SetDefaultRenderTargets() = 0;		

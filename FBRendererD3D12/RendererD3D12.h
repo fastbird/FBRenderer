@@ -81,6 +81,7 @@ namespace fb
 		virtual void SetGraphicsRootConstantBufferView(int rootParamIndex, fb::IUploadBufferIPtr constantBuffer, int elementIndex) override;
 		virtual void SetGraphicsRootDescriptorTable(int rootParamIndex, IDescriptorHeapIPtr descriptorHeap, int index) override;
 		virtual void SetGraphicsRoot32BitConstants(UINT RootParameterIndex, UINT Num32BitValuesToSet, const void* pSrcData, UINT DestOffsetIn32BitValues) override;
+		virtual void SetComputeRoot32BitConstants(UINT RootParameterIndex, UINT Num32BitValuesToSet, const void* pSrcData, UINT DestOffsetIn32BitValues) override;
 		virtual void SetPrimitiveTopology(const fb::EPrimitiveTopology topology) override;
 		virtual void SetPipelineState(PSOID psoID) override;
 		virtual void DrawIndexedInstanced(UINT IndexCountPerInstance,
@@ -94,6 +95,8 @@ namespace fb
 			UINT StartInstanceLocation) override;
 		virtual void ResourceBarrier_Backbuffer_PresentToRenderTarget() override;
 		virtual void ResourceBarrier_Backbuffer_RenderTargetToPresent() override;
+		virtual void ResourceBarrierTransition(const ITextureIPtr& t, const FResourceBarrier& barrier) override;
+		virtual void CopyResource(const ITextureIPtr& dest, const ITextureIPtr& src) override;
 		virtual void SetViewportAndScissor(int x, int y, UINT width, UINT height) override;
 		virtual void ClearRenderTargetDepthStencil(float clearColor[4]) override;
 		virtual void SetDefaultRenderTargets() override;

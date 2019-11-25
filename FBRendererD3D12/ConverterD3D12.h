@@ -192,4 +192,8 @@ namespace fb {
 	inline D3D_PRIMITIVE_TOPOLOGY Convert(EPrimitiveTopology s) {
 		return D3D_PRIMITIVE_TOPOLOGY(s);
 	}
+
+	inline D3D12_RESOURCE_STATES Convert(EResourceState s) {
+		return D3D12_RESOURCE_STATES(s);
+	}
 }

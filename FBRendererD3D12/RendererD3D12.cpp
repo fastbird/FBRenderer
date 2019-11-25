@@ -708,6 +708,13 @@ void RendererD3D12::SetGraphicsRoot32BitConstants(UINT RootParameterIndex, UINT 
 		pSrcData, DestOffsetIn32BitValues);
 }
 
+void RendererD3D12::SetComputeRoot32BitConstants(UINT RootParameterIndex, UINT Num32BitValuesToSet, 
+	const void* pSrcData, UINT DestOffsetIn32BitValues)
+{
+	CommandList->SetComputeRoot32BitConstants(RootParameterIndex, Num32BitValuesToSet,
+		pSrcData, DestOffsetIn32BitValues);
+}
+
 void RendererD3D12::TempCreateRootSignatureForSimpleBox()
 {
 	CD3DX12_ROOT_PARAMETER slotRootParameter[1];
@@ -794,6 +801,26 @@ void RendererD3D12::ResourceBarrier_Backbuffer_RenderTargetToPresent()
 {
 	CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+}
+
+void RendererD3D12::ResourceBarrierTransition(const ITextureIPtr& t, const FResourceBarrier& barrier)
+{
+	Texture* d3dTexture = (Texture*)t.get();
+	if (!d3dTexture)
+		return;
+	auto transitionBarrier = CD3DX12_RESOURCE_BARRIER::Transition(d3dTexture->Resource.Get(),
+		Convert(barrier.From), Convert(barrier.To));
+
+	CommandList->ResourceBarrier(1, &transitionBarrier);
+}
+
+void RendererD3D12::CopyResource(const ITextureIPtr& dest, const ITextureIPtr& src)
+{
+	Texture* d3dDest = (Texture*)dest.get();
+	Texture* d3dSrc = (Texture*)src.get();
+	if (!d3dDest || !d3dSrc)
+		return;
+	CommandList->CopyResource(d3dDest->Resource.Get(), d3dSrc->Resource.Get());
 }
 
 void RendererD3D12::SetViewportAndScissor(int x, int y, UINT width, UINT height)

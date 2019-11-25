@@ -1739,13 +1739,13 @@ void BuildShaderResourceView_Wave()
 		DescriptorHeap = gRenderer->CreateDescriptorHeap(fb::EDescriptorHeapType::CBV_SRV_UAV, Num_CBV_SRV_UAV);
 
 	assert(Textures["woodCrateTex"]);
-	auto result = DescriptorHeap->CreateDescriptor(0, Textures["grassTex"]);
+	auto result = DescriptorHeap->CreateSRV(0, Textures["grassTex"]);
 	assert(result);
-	result = DescriptorHeap->CreateDescriptor(1, Textures["waterTex"]);
+	result = DescriptorHeap->CreateSRV(1, Textures["waterTex"]);
 	assert(result);
-	result = DescriptorHeap->CreateDescriptor(2, Textures["wireFenceTex"]);
+	result = DescriptorHeap->CreateSRV(2, Textures["wireFenceTex"]);
 	assert(result);
-	result = DescriptorHeap->CreateDescriptor(3, Textures["treeArrayTex"]);
+	result = DescriptorHeap->CreateSRV(3, Textures["treeArrayTex"]);
 	assert(result);
 
 }
@@ -1755,13 +1755,13 @@ void BuildShaderResourceView_Skull()
 	if (!DescriptorHeap)
 		DescriptorHeap = gRenderer->CreateDescriptorHeap(fb::EDescriptorHeapType::CBV_SRV_UAV, Num_CBV_SRV_UAV);
 
-	auto result = DescriptorHeap->CreateDescriptor(0, Textures["bricksTex"]);
+	auto result = DescriptorHeap->CreateSRV(0, Textures["bricksTex"]);
 	assert(result);
-	result = DescriptorHeap->CreateDescriptor(1, Textures["checkboardTex"]);
+	result = DescriptorHeap->CreateSRV(1, Textures["checkboardTex"]);
 	assert(result);
-	result = DescriptorHeap->CreateDescriptor(2, Textures["iceTex"]);
+	result = DescriptorHeap->CreateSRV(2, Textures["iceTex"]);
 	assert(result);
-	result = DescriptorHeap->CreateDescriptor(3, Textures["white1x1Tex"]);
+	result = DescriptorHeap->CreateSRV(3, Textures["white1x1Tex"]);
 	assert(result);
 }
 

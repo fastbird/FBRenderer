@@ -154,6 +154,7 @@
     <ClInclude Include="PrimitiveTopology.h" />
     <ClInclude Include="PSO.h" />
     <ClInclude Include="IRootSignature.h" />
+    <ClInclude Include="ResourceBarrier.h" />
     <ClInclude Include="TextureSamplers.h" />
     <ClInclude Include="Types.h" />
   </ItemGroup>

@@ -5,7 +5,7 @@
 #include "UploadBuffer.h"
 using namespace fb;
 
-bool DescriptorHeap::CreateDescriptor(UINT heapIndex, ITextureIPtr texture)
+bool DescriptorHeap::CreateSRV(UINT heapIndex, ITextureIPtr texture)
 {
 	if (!DescriptorHeapD3D || !texture)
 		return false;
@@ -34,7 +34,27 @@ bool DescriptorHeap::CreateDescriptor(UINT heapIndex, ITextureIPtr texture)
 	return true;
 }
 
-bool DescriptorHeap::CreateDescriptor(UINT heapIndex, IUploadBufferIPtr uploadBuffer, UINT elementIndex)
+bool DescriptorHeap::CreateUAV(UINT heapIndex, ITextureIPtr texture)
+{
+	auto texResource = ((Texture*)texture.get())->Resource.Get();
+	if (!texResource)
+		return false;
+
+	CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(DescriptorHeapD3D->GetCPUDescriptorHandleForHeapStart());
+	if (heapIndex > 0)
+	{
+		hDescriptor.Offset(heapIndex, GetCbvSrvUavDescriptorSize());
+	}
+
+	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+
+	uavDesc.Format = texResource->GetDesc().Format;
+	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+	uavDesc.Texture2D.MipSlice = 0;
+	GetDevice()->CreateUnorderedAccessView(texResource, nullptr, &uavDesc, hDescriptor);
+}
+
+bool DescriptorHeap::CreateCBV(UINT heapIndex, IUploadBufferIPtr uploadBuffer, UINT elementIndex)
 {
 	if (!DescriptorHeapD3D)
 		return false;
