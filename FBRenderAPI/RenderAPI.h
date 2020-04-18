@@ -23,12 +23,42 @@ namespace fb
 		enum class Result
 		{
 			Success = 0,
-			ModuleNotFound = -1,
-			FunctionNotFound = -2,
+			ModuleNotFoundError = -1,
+			FunctionNotFoundError = -2,
 			GeneralError = -3,
 			PlatformError = -4,
-			ModuleEntryPointNotFound = -5,
-			InvalidParameter = -6,
+			ModuleEntryPointNotFoundError = -5,
+			InvalidParameterError = -6,
+			// vk::SystemErrors. Can be shared other API's error.
+			OutOfHostMemoryError = -7,
+			OutOfDeviceMemoryError = -8,
+			InitializationFailedError = -9,
+			DeviceLostError = -10,
+			MemoryMapFailedError = -11,
+			LayerNotPresentError = -12,
+			ExtensionNotPresentError = -13,
+			FeatureNotPresentError = -14,
+			IncompatibleDriverError = -15,
+			TooManyObjectsError = -16,
+			FormatNotSupportedError = -17,
+			FragmentedPoolError = -18,
+			UnknownError = -19,
+			OutOfPoolMemoryError = -20,
+			InvalidExternalHandleError = -21,
+			FragmentationError = -22,
+			InvalidOpaqueCaptureAddressError = -23,
+			SurfaceLostKHRError = -24,
+			NativeWindowInUseKHRError = -25,
+			OutOfDateKHRError = -26,
+			IncompatibleDisplayKHRError = -27,
+			ValidationFailedEXTError = -28,
+			InvalidShaderNVError = -29,
+			InvalidDrmFormatModifierPlaneLayoutEXTError = -30,
+			NotPermittedEXTError = -31,
+			FullScreenExclusiveModeLostEXTError = -32,
+			// vk::SystemError End
+
+
 		};
 
 		MPGE_DLL static Result LastResult;

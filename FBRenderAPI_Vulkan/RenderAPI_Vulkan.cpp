@@ -1,12 +1,13 @@
 #include "stdafx.h"
 #include "RenderAPI_Vulkan.h"
+#include "OnVulkanSystemError.inl"
 
 extern "C" {
 	fb::RenderAPI* Initialize(fb::RenderAPI::Result* ret, fb::InitInfo* initInfo)
 	{
 		if (!initInfo) {
 			if (ret) {
-				*ret = fb::RenderAPI::Result::InvalidParameter;
+				*ret = fb::RenderAPI::Result::InvalidParameterError;
 			}
 			return nullptr;
 		}
@@ -31,13 +32,13 @@ namespace fb {
 	}
 
 	MPGEVulkan::MPGEVulkan(InitInfo* initInfo)
-	{
+	{		
 		CreateInstance(initInfo);
 	}
 
 	MPGEVulkan::~MPGEVulkan()
 	{
-
+		FreeLibrary(VulkanModule);
 	}
 
 	bool MPGEVulkan::IsSupportedLayer(const char* layerName) const
@@ -45,6 +46,7 @@ namespace fb {
 		static PFN_vkEnumerateInstanceLayerProperties vkEnumerateInstanceLayerProperties =
 			(PFN_vkEnumerateInstanceLayerProperties)vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceLayerProperties");
 		if (!vkEnumerateInstanceLayerProperties) {
+			LastResult = RenderAPI::Result::FunctionNotFoundError;
 			fprintf(stderr, "vkEnumerateInstanceLayerProperties() is not found.\n");
 			return false;
 		}
@@ -52,12 +54,14 @@ namespace fb {
 		VkResult result;
 		result = vkEnumerateInstanceLayerProperties(&count, nullptr);
 		if (result != VK_SUCCESS) {
+			LastResult = RenderAPI::Result::GeneralError;
 			fprintf(stderr, "vkEnumerateInstanceLayerProperties() failed.\n");
 			return false;
 		}
 		std::vector<VkLayerProperties> layerProperties(count);
 		result = vkEnumerateInstanceLayerProperties(&count, layerProperties.data());
 		if (result < 0) {
+			LastResult = RenderAPI::Result::GeneralError;
 			fprintf(stderr, "vkEnumerateInstanceLayerProperties returned with error code: %d\n", result);
 			return false;
 		}
@@ -75,7 +79,7 @@ namespace fb {
 	{
 		PFN_vkEnumerateInstanceVersion vkEnumerateInstanceVersion = (PFN_vkEnumerateInstanceVersion)vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceVersion");
 		if (!vkEnumerateInstanceVersion) {
-			LastResult = RenderAPI::Result::FunctionNotFound;
+			LastResult = RenderAPI::Result::FunctionNotFoundError;
 			fprintf(stderr, "vkEnumerateInstanceVersion() not found.\n");
 			return;
 		}
@@ -86,12 +90,6 @@ namespace fb {
 		uint32_t versionMinor = VK_VERSION_MINOR(instanceVersion);
 		uint32_t versionPatch = VK_VERSION_PATCH(instanceVersion);
 		fprintf(stdout, "Vulkan version : %u.%u.%u\n", versionMajor, versionMinor, versionPatch);
-		PFN_vkCreateInstance vkCreateInstance = (PFN_vkCreateInstance)vkGetInstanceProcAddr(nullptr, "vkCreateInstance");
-		if (!vkCreateInstance) {
-			LastResult = RenderAPI::Result::FunctionNotFound;
-			fprintf(stderr, "vkCreateInstance() not found.\n");
-			return;
-		}
 
 		vk::ApplicationInfo appInfo;
 		appInfo.pApplicationName = initInfo->ApplicationName;
@@ -110,7 +108,15 @@ namespace fb {
 		createInfo.ppEnabledLayerNames = layerNames.data();
 		createInfo.enabledExtensionCount = 0;
 		createInfo.ppEnabledExtensionNames = nullptr;
-		//vkCreateInstance();
+		try
+		{
+			vkInst = vk::createInstance(createInfo);
+		}
+		catch (const vk::SystemError error)
+		{
+			OnVulkanSystemError(error, LastResult);
+			return;
+		}
 		LastResult = RenderAPI::Result::Success;
 	}
 }

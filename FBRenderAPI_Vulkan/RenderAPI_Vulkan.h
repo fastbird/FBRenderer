@@ -12,7 +12,9 @@ namespace fb
 		MPGEVulkan(InitInfo* initInfo);
 		~MPGEVulkan();
 
-		RenderAPI::Result LastResult = RenderAPI::Result::Success;
+		mutable RenderAPI::Result LastResult = RenderAPI::Result::Success;
+		HMODULE VulkanModule;
+		vk::Instance vkInst;
 
 	public:
 		static MPGEVulkan* Initialize(InitInfo* initInfo);

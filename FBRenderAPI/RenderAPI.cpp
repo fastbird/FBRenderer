@@ -11,14 +11,14 @@ namespace fb
 		// Load MPGE_DX12.dll
 		auto dx12 = LoadLibrary(L"FBRenderAPI_DX12.dll");
 		if (!dx12) {
-			RenderAPI::LastResult = RenderAPI::Result::ModuleNotFound;
+			RenderAPI::LastResult = RenderAPI::Result::ModuleNotFoundError;
 			fprintf(stderr, "FBRenderAPI_DX12.dll not found.\n");
 			return nullptr;
 		}
 		typedef RenderAPI* (*InitializeProc)(RenderAPI::Result*, InitInfo*);
 		InitializeProc Initialize = (InitializeProc)GetProcAddress(dx12, "Initialize");
 		if (!Initialize) {
-			RenderAPI::LastResult = RenderAPI::Result::ModuleEntryPointNotFound;
+			RenderAPI::LastResult = RenderAPI::Result::ModuleEntryPointNotFoundError;
 			fprintf(stderr, "Module entry point function not found.\n");
 			return nullptr;
 		}
@@ -36,14 +36,14 @@ namespace fb
 		// Load MPGE_Vulkan.dll
 		auto vulkan = LoadLibrary(L"FBRenderAPI_Vulkan.dll");
 		if (!vulkan) {
-			RenderAPI::LastResult = RenderAPI::Result::ModuleNotFound;
+			RenderAPI::LastResult = RenderAPI::Result::ModuleNotFoundError;
 			fprintf(stderr, "MPGE_Vulkan.dll not found.\n");
 			return nullptr;
 		}
 		typedef RenderAPI* (*InitializeProc)(RenderAPI::Result*, InitInfo*);
 		InitializeProc Initialize = (InitializeProc)GetProcAddress(vulkan, "Initialize");
 		if (!Initialize) {
-			RenderAPI::LastResult = RenderAPI::Result::ModuleEntryPointNotFound;
+			RenderAPI::LastResult = RenderAPI::Result::ModuleEntryPointNotFoundError;
 			fprintf(stderr, "Module entry point function not found.\n");
 			return nullptr;
 		}
@@ -65,7 +65,7 @@ namespace fb
 	MPGE_DLL RenderAPI* RenderAPI::Initialize(RenderAPIName apiName, InitInfo* initInfo)
 	{
 		if (!initInfo) {
-			LastResult = RenderAPI::Result::InvalidParameter;
+			LastResult = RenderAPI::Result::InvalidParameterError;
 			fprintf(stderr, "'initInfo' must not be null.\n");
 			return nullptr;
 		}
@@ -77,7 +77,7 @@ namespace fb
 		case RenderAPIName::Metal:
 			return InitMetal(initInfo);
 		}
-		LastResult = RenderAPI::Result::InvalidParameter;
+		LastResult = RenderAPI::Result::InvalidParameterError;
 		fprintf(stderr, "Invaild API Name.\n");
 		return nullptr;
 	}

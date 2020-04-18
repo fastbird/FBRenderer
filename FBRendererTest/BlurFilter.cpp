@@ -35,7 +35,7 @@ void BlurFilter::OnResize(UINT newWidth, UINT newHeight)
 		BuildResources();
 
 		// New resource, so we need new descriptors to that resource.
-		BuildDescriptors();
+		//BuildDescriptors();
 	}
 }
 
