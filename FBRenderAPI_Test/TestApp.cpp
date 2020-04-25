@@ -11,9 +11,14 @@ int main()
 	info.ApplicationVersion = VK_MAKE_VERSION(0, 0, 0);
 	info.EngineName = "MPGE";
 	info.EngineVersion = VK_MAKE_VERSION(0, 0, 0);
-	auto render = RenderAPI::Initialize(RenderAPIName::Vulkan, &info);
-	int a = 0;
-	++a;
+	auto render = RenderAPI::Initialize(eRenderAPIName::DX12, &info);
+	if (!render || !render->Success())
+	{
+		fprintf(stderr, "Failed to create renderer.\n");
+		return 1;
+	}
+
+	auto GPUs = render->GetGPUs();
 
 	return 0;
 }

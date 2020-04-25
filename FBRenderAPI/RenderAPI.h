@@ -1,9 +1,11 @@
 #pragma once
 #include "stdafx.h"
+#include <vector>
+#include <string>
 
 namespace fb
 {
-	enum class RenderAPIName {
+	enum class eRenderAPIName {
 		DX12,
 		Vulkan,
 		Metal,
@@ -17,53 +19,39 @@ namespace fb
 		uint32_t EngineVersion = 0;
 	};
 
+	enum class eGPUVendor
+	{
+		Nvidia,
+		AMD,
+		Intel,
+		Unknown
+	};
+	struct PhysicalDeviceProperties
+	{
+		std::string Name;
+		eGPUVendor Vendor;
+		uint32_t VendorId;
+		uint32_t DeviceId;
+		uint64_t DriverVersion; // Driver Version has different meaning on different Render API
+		uint64_t DedicatedVideoMemory;
+	};
+
 	class RenderAPI
 	{
+		
 	public:
-		enum class Result
-		{
-			Success = 0,
-			ModuleNotFoundError = -1,
-			FunctionNotFoundError = -2,
-			GeneralError = -3,
-			PlatformError = -4,
-			ModuleEntryPointNotFoundError = -5,
-			InvalidParameterError = -6,
-			// vk::SystemErrors. Can be shared other API's error.
-			OutOfHostMemoryError = -7,
-			OutOfDeviceMemoryError = -8,
-			InitializationFailedError = -9,
-			DeviceLostError = -10,
-			MemoryMapFailedError = -11,
-			LayerNotPresentError = -12,
-			ExtensionNotPresentError = -13,
-			FeatureNotPresentError = -14,
-			IncompatibleDriverError = -15,
-			TooManyObjectsError = -16,
-			FormatNotSupportedError = -17,
-			FragmentedPoolError = -18,
-			UnknownError = -19,
-			OutOfPoolMemoryError = -20,
-			InvalidExternalHandleError = -21,
-			FragmentationError = -22,
-			InvalidOpaqueCaptureAddressError = -23,
-			SurfaceLostKHRError = -24,
-			NativeWindowInUseKHRError = -25,
-			OutOfDateKHRError = -26,
-			IncompatibleDisplayKHRError = -27,
-			ValidationFailedEXTError = -28,
-			InvalidShaderNVError = -29,
-			InvalidDrmFormatModifierPlaneLayoutEXTError = -30,
-			NotPermittedEXTError = -31,
-			FullScreenExclusiveModeLostEXTError = -32,
-			// vk::SystemError End
+#include "RenderAPIError.inl"
 
+	private:
+		static eResult LastResult;
 
-		};
-
-		MPGE_DLL static Result LastResult;
-		MPGE_DLL static RenderAPI* Initialize(RenderAPIName apiName, InitInfo* initInfo);
+	public:
+		eResult GetLastResult() const { return LastResult; }
+		bool Success() const { return LastResult == eResult::Success; }
+		MPGE_DLL static RenderAPI* Initialize(eRenderAPIName apiName, InitInfo* initInfo);
 		virtual void Finalize() = 0;
+
+		virtual std::vector<PhysicalDeviceProperties> GetGPUs() const = 0;
 		
 	};
 }

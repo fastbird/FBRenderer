@@ -3,26 +3,26 @@
 
 namespace fb
 {
-	MPGE_DLL RenderAPI::Result RenderAPI::LastResult;
+	RenderAPI::eResult RenderAPI::LastResult;
 
-	RenderAPI* InitDX12(InitInfo* initInfo)
+	RenderAPI* InitDX12(RenderAPI::eResult& LastResult, InitInfo* initInfo)
 	{
 #if defined(_MSC_VER)
 		// Load MPGE_DX12.dll
 		auto dx12 = LoadLibrary(L"FBRenderAPI_DX12.dll");
 		if (!dx12) {
-			RenderAPI::LastResult = RenderAPI::Result::ModuleNotFoundError;
+			LastResult = RenderAPI::eResult::ModuleNotFoundError;
 			fprintf(stderr, "FBRenderAPI_DX12.dll not found.\n");
 			return nullptr;
 		}
-		typedef RenderAPI* (*InitializeProc)(RenderAPI::Result*, InitInfo*);
+		typedef RenderAPI* (*InitializeProc)(RenderAPI::eResult*, InitInfo*);
 		InitializeProc Initialize = (InitializeProc)GetProcAddress(dx12, "Initialize");
 		if (!Initialize) {
-			RenderAPI::LastResult = RenderAPI::Result::ModuleEntryPointNotFoundError;
+			LastResult = RenderAPI::eResult::ModuleEntryPointNotFoundError;
 			fprintf(stderr, "Module entry point function not found.\n");
 			return nullptr;
 		}
-		return Initialize(&RenderAPI::LastResult, initInfo);
+		return Initialize(&LastResult, initInfo);
 #else
 		MPGE::LastResult = MPGEResult::PlatformError;
 		fprintf(stderr, "Invalid platform.\n");
@@ -30,24 +30,24 @@ namespace fb
 #endif
 	}
 
-	RenderAPI* InitVulkan(InitInfo* initInfo)
+	RenderAPI* InitVulkan(RenderAPI::eResult& LastResult, InitInfo* initInfo)
 	{
 #if defined(_MSC_VER)
 		// Load MPGE_Vulkan.dll
 		auto vulkan = LoadLibrary(L"FBRenderAPI_Vulkan.dll");
 		if (!vulkan) {
-			RenderAPI::LastResult = RenderAPI::Result::ModuleNotFoundError;
+			LastResult = RenderAPI::eResult::ModuleNotFoundError;
 			fprintf(stderr, "MPGE_Vulkan.dll not found.\n");
 			return nullptr;
 		}
-		typedef RenderAPI* (*InitializeProc)(RenderAPI::Result*, InitInfo*);
+		typedef RenderAPI* (*InitializeProc)(RenderAPI::eResult*, InitInfo*);
 		InitializeProc Initialize = (InitializeProc)GetProcAddress(vulkan, "Initialize");
 		if (!Initialize) {
-			RenderAPI::LastResult = RenderAPI::Result::ModuleEntryPointNotFoundError;
+			LastResult = RenderAPI::eResult::ModuleEntryPointNotFoundError;
 			fprintf(stderr, "Module entry point function not found.\n");
 			return nullptr;
 		}
-		return Initialize(&RenderAPI::LastResult, initInfo);
+		return Initialize(&LastResult, initInfo);
 #else
 		// TODO: Mac, Android, iOS
 		MPGE::LastResult = MPGEResult::PlatformError;
@@ -56,28 +56,28 @@ namespace fb
 #endif
 	}
 
-	RenderAPI* InitMetal(InitInfo* initInfo)
+	RenderAPI* InitMetal(RenderAPI::eResult& LastResult, InitInfo* initInfo)
 	{
 		// TODO : Metal API
 		return nullptr;
 	}
 
-	MPGE_DLL RenderAPI* RenderAPI::Initialize(RenderAPIName apiName, InitInfo* initInfo)
+	MPGE_DLL RenderAPI* RenderAPI::Initialize(eRenderAPIName apiName, InitInfo* initInfo)
 	{
 		if (!initInfo) {
-			LastResult = RenderAPI::Result::InvalidParameterError;
+			LastResult = RenderAPI::eResult::InvalidParameterError;
 			fprintf(stderr, "'initInfo' must not be null.\n");
 			return nullptr;
 		}
 		switch (apiName) {
-		case RenderAPIName::DX12:
-			return InitDX12(initInfo);
-		case RenderAPIName::Vulkan:
-			return InitVulkan(initInfo);
-		case RenderAPIName::Metal:
-			return InitMetal(initInfo);
+		case eRenderAPIName::DX12:
+			return InitDX12(LastResult, initInfo);
+		case eRenderAPIName::Vulkan:
+			return InitVulkan(LastResult, initInfo);
+		case eRenderAPIName::Metal:
+			return InitMetal(LastResult, initInfo);
 		}
-		LastResult = RenderAPI::Result::InvalidParameterError;
+		LastResult = RenderAPI::eResult::InvalidParameterError;
 		fprintf(stderr, "Invaild API Name.\n");
 		return nullptr;
 	}

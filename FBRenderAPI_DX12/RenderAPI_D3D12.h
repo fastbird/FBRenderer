@@ -2,22 +2,22 @@
 #include "../FBRenderAPI/RenderAPI.h"
 
 extern "C" {
-	MPGE_VULKAN_DLL fb::RenderAPI* Initialize(fb::RenderAPI::eResult* ret, fb::InitInfo* initInfo);
+	MPGE_D3D12_DLL fb::RenderAPI* Initialize(fb::RenderAPI::eResult* ret, fb::InitInfo* initInfo);
 }
 
 namespace fb
 {
-	class MPGEVulkan : public RenderAPI
+	class MPGEDirect3D12 : public RenderAPI
 	{
-		MPGEVulkan(InitInfo* initInfo);
-		~MPGEVulkan();
+		MPGEDirect3D12(InitInfo* initInfo);
+		~MPGEDirect3D12();
 
 		mutable RenderAPI::eResult LastResult = RenderAPI::eResult::Success;
-		HMODULE VulkanModule;
-		vk::Instance vkInst;
+		Microsoft::WRL::ComPtr<IDXGIFactory4> DXGIFactory;
+		Microsoft::WRL::ComPtr<ID3D12Device> Device;
 
 	public:
-		static MPGEVulkan* Initialize(InitInfo* initInfo);
+		static MPGEDirect3D12* Initialize(InitInfo* initInfo);
 		void Finalize() override;
 
 		void CreateInstance(InitInfo* initInfo);
@@ -27,9 +27,7 @@ namespace fb
 		// public functions end
 
 	private:
-		bool IsSupportedLayer(const char* layerName) const;
 
-		
-		
+
 	};
 }

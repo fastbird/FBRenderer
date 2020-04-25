@@ -31,7 +31,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="OnVulkanSystemError.inl">
+    <None Include="VulkanError.inl">
       <Filter>Header Files</Filter>
     </None>
   </ItemGroup>
