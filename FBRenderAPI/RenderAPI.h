@@ -2,6 +2,7 @@
 #include "stdafx.h"
 #include <vector>
 #include <string>
+#include "HeaderOnlyUtil.h"
 
 namespace fb
 {
@@ -52,6 +53,8 @@ namespace fb
 		virtual void Finalize() = 0;
 
 		virtual std::vector<PhysicalDeviceProperties> GetGPUs() const = 0;
+#include "Device.inl"
+		virtual Device* CreateDevice(uint32_t gpuIndex) = 0;
 		
 	};
 }

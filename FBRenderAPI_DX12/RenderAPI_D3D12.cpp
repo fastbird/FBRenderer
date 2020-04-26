@@ -1,6 +1,11 @@
 #include "stdafx.h"
 #include "RenderAPI_D3D12.h"
 #include "D3DError.inl"
+#include "../FBRenderAPI/HeaderOnlyUtil.h"
+
+void intrusive_ptr_add_ref(IUnknown* p) { p->AddRef(); }
+void intrusive_ptr_release(IUnknown* p) { p->Release(); }
+
 extern "C" {
 	fb::RenderAPI* Initialize(fb::RenderAPI::eResult* ret, fb::InitInfo* initInfo)
 	{
@@ -38,7 +43,7 @@ MPGEDirect3D12::MPGEDirect3D12(InitInfo* initInfo)
 
 MPGEDirect3D12::~MPGEDirect3D12()
 {
-
+	delete Device; Device = nullptr;
 }
 
 void MPGEDirect3D12::CreateInstance(InitInfo* initInfo)
@@ -151,6 +156,11 @@ inline std::string WideToAnsiString(wchar_t* source)
 	return std::string(ansiBuffer.data());
 }
 
+template<class Type>
+class TRefCounted
+{
+
+};
 
 std::vector<PhysicalDeviceProperties> MPGEDirect3D12::GetGPUs() const
 {
@@ -165,10 +175,10 @@ std::vector<PhysicalDeviceProperties> MPGEDirect3D12::GetGPUs() const
 
 	UINT i = 0;
 	IDXGIAdapter1* pAdapter;
-	std::vector <IDXGIAdapter1*> vAdapters;
+	std::vector <intrusive_ptr<IDXGIAdapter1>> vAdapters;	
 	while (DXGIFactory->EnumAdapters1(i, &pAdapter) != DXGI_ERROR_NOT_FOUND)
 	{
-		vAdapters.push_back(pAdapter);
+		vAdapters.push_back({ pAdapter, false });
 		++i;
 	}
 
@@ -202,4 +212,33 @@ std::vector<PhysicalDeviceProperties> MPGEDirect3D12::GetGPUs() const
 		ret.push_back(properties);
 	}
 	return ret;
+}
+
+RenderAPI::Device* MPGEDirect3D12::CreateDevice(uint32_t gpuIndex)
+{
+	LastResult = RenderAPI::eResult::Success;
+	if (Device)
+	{
+		LastResult = RenderAPI::eResult::AlreadyExistsError;
+		fprintf(stderr, "Device already exists.\n");
+		return nullptr;
+	}
+
+	IDXGIAdapter1* adapter;
+	DXGIFactory->EnumAdapters1(gpuIndex, &adapter);
+	Microsoft::WRL::ComPtr<ID3D12Device> device;
+	auto hr = D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(&device));
+	if (FAILED(hr))
+	{
+		OnD3DError(hr, LastResult);
+		return nullptr;
+	}
+	Device = new DeviceD3D12(device);
+	return Device;
+}
+
+DeviceD3D12::DeviceD3D12(Microsoft::WRL::ComPtr<ID3D12Device> device)
+	: Device(device)
+{
+
 }

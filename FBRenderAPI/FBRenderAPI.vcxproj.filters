@@ -29,9 +29,15 @@
     <ClInclude Include="RenderAPI.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="HeaderOnlyUtil.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="RenderAPIError.inl">
+      <Filter>Header Files</Filter>
+    </None>
+    <None Include="Device.inl">
       <Filter>Header Files</Filter>
     </None>
   </ItemGroup>

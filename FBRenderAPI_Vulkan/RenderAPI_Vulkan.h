@@ -7,6 +7,14 @@ extern "C" {
 
 namespace fb
 {
+	class DeviceVulkan : public RenderAPI::Device
+	{
+	public:
+		DeviceVulkan(vk::Device device);
+
+		vk::Device Device;
+	};
+	
 	class MPGEVulkan : public RenderAPI
 	{
 		MPGEVulkan(InitInfo* initInfo);
@@ -15,6 +23,7 @@ namespace fb
 		mutable RenderAPI::eResult LastResult = RenderAPI::eResult::Success;
 		HMODULE VulkanModule;
 		vk::Instance vkInst;
+		DeviceVulkan* Device = nullptr;
 
 	public:
 		static MPGEVulkan* Initialize(InitInfo* initInfo);
@@ -24,12 +33,8 @@ namespace fb
 		RenderAPI::eResult GetLastResult() const { return LastResult; }
 
 		std::vector<PhysicalDeviceProperties> GetGPUs() const override;
-		// public functions end
-
-	private:
-		bool IsSupportedLayer(const char* layerName) const;
-
-		
+		RenderAPI::Device* CreateDevice(uint32_t gpuIndex) override;
+		// public functions end	
 		
 	};
 }
